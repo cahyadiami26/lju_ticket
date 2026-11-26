@@ -18,7 +18,7 @@ $nav = [
     ['network/index.php', 'Pengaduan Jaringan', '◉', true],
     // Batch 6 (Reporting) — hanya IT
     ['reports/sla.php', 'Laporan SLA', '⏱', $it],
-    ['reports/index.php', 'Laporan & Analitik', '▤', false],
+    ['reports/index.php', 'Laporan & Analitik', '▤', $it],
     // Batch 7 (MikroTik Monitoring) — hanya IT
     ['monitoring/index.php', 'Monitoring Jaringan', '◈', false],
     // Batch 5 (Settings) — hanya IT

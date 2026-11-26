@@ -78,8 +78,17 @@ lju_ticket/
 ├── includes/
 │   ├── session.php          # SSO session + proteksi halaman
 │   ├── db.php               # Koneksi PDO (helpdesk + users)
+│   ├── url.php              # Base URL, url(), asset() untuk subfolder
 │   ├── auth.php             # Helper user, role, avatar, refresh session
-│   ├── functions.php        # Helper umum (escape, CSRF, tanggal, badge)
+│   ├── functions.php        # Helper umum (escape, CSRF, tanggal, badge, SLA)
+│   ├── ticket.php           # Nomor tiket, history, notifikasi, upload
+│   ├── ticket_actions.php   # Aksi manajemen tiket (assign/status/eskalasi/…)
+│   ├── network.php          # Modul jaringan (ruangan, jenis, checklist)
+│   ├── settings.php         # Pengaturan system_settings
+│   ├── notifier.php         # Notification Center (in-app/email/WhatsApp)
+│   ├── sla.php              # Mesin SLA + eskalasi otomatis
+│   ├── reports.php          # Query agregasi laporan
+│   ├── pdf.php              # Integrasi domPDF (manual)
 │   ├── header.php           # Layout header + topbar
 │   ├── sidebar.php          # Layout sidebar
 │   └── footer.php           # Layout footer
@@ -87,13 +96,34 @@ lju_ticket/
 │   ├── css/app.css          # Stylesheet (clean, elegan, responsif)
 │   └── js/app.js            # JavaScript vanilla
 ├── database/
-│   └── schema.sql           # Skema database helpdesk + seed data
+│   ├── schema.sql           # Skema lengkap + seed (instalasi baru)
+│   ├── migration_batch4.sql # Migrasi modul jaringan (DB lama)
+│   └── migration_batch5.sql # Migrasi SLA & notifikasi (DB lama)
+├── cron/
+│   └── sla.php              # Cron SLA (tiap 10 menit, token-protected)
 ├── uploads/
-│   └── tickets/             # Folder lampiran tiket (Batch 2)
+│   └── tickets/             # Folder lampiran tiket
 ├── library/
-│   └── dompdf/              # domPDF install manual (Batch 6, tanpa Composer)
+│   └── dompdf/              # domPDF install manual (tanpa Composer)
+├── tickets/
+│   ├── create.php           # Form buat tiket
+│   └── view.php             # Detail tiket + komunikasi + aksi IT
+├── admin/
+│   ├── tickets.php          # Manajemen tiket (meja kerja IT)
+│   └── faq.php              # Kelola FAQ / Knowledge Base
+├── network/
+│   └── index.php            # Dashboard gangguan jaringan per ruangan
+├── reports/
+│   ├── index.php            # Laporan & analitik manajerial
+│   ├── sla.php              # Laporan SLA bulanan
+│   └── export.php           # Export PDF (domPDF) & CSV
+├── settings/
+│   └── index.php            # Pengaturan SLA, email, WhatsApp, cron
 ├── index.php                # Entry point → dashboard / SSO redirect
 ├── dashboard.php            # Dashboard karyawan + ringkasan IT
+├── tickets.php              # Tracking & riwayat tiket
+├── faq.php                  # FAQ / Knowledge Base (karyawan)
+├── notifications.php        # Notification Center in-app
 ├── demo-login.php           # Login demo (DEV_MODE saja)
 ├── logout.php               # Keluar (hapus session lokal)
 └── profile.php              # Profil user (dari session + tabel users)
@@ -113,9 +143,17 @@ lju_ticket/
    ```bash
    mysql -u root -p lju_helpdesk < database/schema.sql
    ```
-3. Pastikan folder `uploads/tickets/` writable oleh web server (`chmod 755` / `chown www-data`).
-4. Set `DEV_MODE = false` untuk production, `true` hanya untuk development lokal.
-5. Arahkan domain `helpdesk.lju.co.id` ke folder ini (document root).
+3. Pastikan folder `uploads/tickets/` dan `library/dompdf/lib/fonts` writable oleh web server
+   (`chmod 755` / `chown www-data`).
+4. Install **domPDF manual** (untuk export PDF): lihat `library/dompdf/README.md`.
+   Tanpa domPDF, menu export otomatis menampilkan preview siap cetak.
+5. Set `DEV_MODE = false` untuk production, `true` hanya untuk development lokal.
+6. Arahkan domain `helpdesk.lju.co.id` ke folder ini (document root).
+7. Atur cron SLA tiap 10 menit (token ada di menu **Pengaturan**):
+   ```bash
+   */10 * * * * curl -s "https://helpdesk.lju.co.id/cron/sla.php?token=TOKEN" > /dev/null
+   ```
+8. Buka **Pengaturan** → isi SMTP email & WhatsApp API (opsional) → klik **Kirim Uji**.
 
 ---
 
@@ -128,7 +166,7 @@ lju_ticket/
 | **3** | **Ticket Management** — Assignment, prioritas, status, eskalasi, internal notes, transfer, reopen, history, SLA | ✅ Selesai |
 | **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ✅ Selesai |
 | **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ✅ Selesai |
-| **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ⬜ Belum |
+| **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ✅ Selesai |
 | **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ⬜ Belum |
 
 ---
@@ -195,8 +233,9 @@ untuk: tiket baru, ditugaskan, status berubah, prioritas berubah, komentar, tike
 Pengaturan kanal + uji kirim ada di menu **Pengaturan**; log pengiriman tersimpan di `notification_logs`.
 
 ### F. Reporting & Analytics
-Total tiket, tiket terbuka, tiket selesai, melewati SLA, per kategori, per ruangan,
-kinerja petugas, rata-rata penyelesaian, kepuasan pengguna + export PDF domPDF. → **Batch 6**
+Total tiket ✅, tiket terbuka ✅, tiket selesai ✅, melewati SLA ✅, per kategori ✅, per ruangan ✅,
+kinerja petugas ✅, rata-rata penyelesaian ✅, kepuasan pengguna ✅, tren harian ✅,
+export PDF domPDF ✅ (`reports/export.php`) + export CSV untuk Excel ✅.
 
 ### G. Network Monitoring (MikroTik REST API v7)
 Setting URL/username/password/list interface via halaman setting; monitoring traffic interface
@@ -224,6 +263,14 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings`, `rooms`, `network_checks` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
+
+### Batch 6 — Reporting & Analytics + domPDF (2026-11-26)
+- `includes/reports.php`: query agregasi laporan — `report_summary()`, `report_by_category()`, `report_by_priority()`, `report_by_officer()`, `report_by_room()`, `report_daily()`, `report_ratings()`, `report_fmt_minutes()`.
+- `includes/pdf.php`: integrasi **domPDF manual** (tanpa Composer) — `dompdf_available()`, `render_pdf()`, `render_report_html()` (template A4 dengan kop logo LJU, KPI, tabel, footer).
+- `reports/index.php`: dashboard analitik — 7 kartu KPI, grafik tren harian (CSS-only, tanpa library), distribusi kepuasan bintang, tabel per kategori & prioritas, gangguan jaringan per ruangan, kinerja petugas IT, filter periode (hari ini/minggu/bulan/bulan lalu/tahun/kustom).
+- `reports/export.php`: export **PDF** (ringkasan, SLA, jaringan) dan **CSV** daftar tiket (UTF-8 BOM, siap Excel). Bila domPDF belum terpasang, otomatis tampil **preview siap cetak** dengan tombol Cetak browser.
+- `library/dompdf/README.md`: panduan instalasi domPDF manual (unduh rilis → ekstrak → uji).
+- `assets/css/app.css`: komponen grafik batang, legenda, bar preview PDF.
 
 ### Batch 5 — SLA & Escalation + Notification Center (2026-11-26)
 - `includes/settings.php`: `get_settings()`, `setting()`, `setting_bool()`, `save_settings()` — pengaturan berbasis tabel `system_settings`.

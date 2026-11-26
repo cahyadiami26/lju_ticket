@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/sla.php';
+require_once __DIR__ . '/../includes/reports.php';
 require_it($pdo);
 
 $pageTitle = 'Laporan SLA';
@@ -51,14 +52,6 @@ try {
 
 $prioLabel = ['critical' => 'Critical', 'high' => 'High', 'medium' => 'Medium', 'low' => 'Low'];
 
-function fmt_minutes($m) {
-    if ($m === null) return '—';
-    $m = (int)$m;
-    if ($m < 60) return $m . ' menit';
-    if ($m < 1440) return floor($m / 60) . ' jam ' . ($m % 60) . ' mnt';
-    return floor($m / 1440) . ' hari ' . floor(($m % 1440) / 60) . ' jam';
-}
-
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
@@ -67,10 +60,14 @@ require_once __DIR__ . '/../includes/header.php';
         <h2 class="mt-0 mb-0">Laporan SLA</h2>
         <div class="text-muted text-sm">Periode <?= e(date('F Y', strtotime($from))) ?></div>
     </div>
-    <form method="get" class="search-row">
-        <input type="month" name="month" class="form-control" style="max-width:180px" value="<?= e($month) ?>">
-        <button type="submit" class="btn btn-primary">Tampilkan</button>
-    </form>
+    <div class="quick-actions">
+        <a href="<?= e(url('reports/export.php')) ?>?type=sla&format=pdf&from=<?= e(date('Y-m-01', strtotime($from))) ?>&to=<?= e(date('Y-m-d', strtotime($to))) ?>"
+           class="btn btn-primary" target="_blank" rel="noopener">⬇ Export PDF</a>
+        <form method="get" class="search-row">
+            <input type="month" name="month" class="form-control" style="max-width:180px" value="<?= e($month) ?>">
+            <button type="submit" class="btn btn-ghost">Tampilkan</button>
+        </form>
+    </div>
 </div>
 
 <div class="stats-grid">
@@ -80,8 +77,8 @@ require_once __DIR__ . '/../includes/header.php';
     <div class="stat-card"><div class="stat-label">Kepatuhan SLA</div><div class="stat-value"><?= e($stats['compliance']) ?>%</div>
         <div class="sla-meter <?= $stats['compliance'] < 80 ? 'overdue' : ($stats['compliance'] < 95 ? 'warning' : '') ?>"><span style="width:<?= min(100, (float)$stats['compliance']) ?>%"></span></div>
     </div>
-    <div class="stat-card"><div class="stat-label">Rata-rata Respons</div><div class="stat-value" style="font-size:20px"><?= e(fmt_minutes($stats['avg_response_min'])) ?></div></div>
-    <div class="stat-card"><div class="stat-label">Rata-rata Penyelesaian</div><div class="stat-value" style="font-size:20px"><?= e(fmt_minutes($stats['avg_resolution_min'])) ?></div></div>
+    <div class="stat-card"><div class="stat-label">Rata-rata Respons</div><div class="stat-value" style="font-size:20px"><?= e(report_fmt_minutes($stats['avg_response_min'])) ?></div></div>
+    <div class="stat-card"><div class="stat-label">Rata-rata Penyelesaian</div><div class="stat-value" style="font-size:20px"><?= e(report_fmt_minutes($stats['avg_resolution_min'])) ?></div></div>
 </div>
 
 <div class="card">
@@ -124,7 +121,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <td><?= (int)$o['total'] ?></td>
                     <td><?= (int)$o['selesai'] ?></td>
                     <td><?= (int)$o['terlambat'] ?></td>
-                    <td><?= e(fmt_minutes($o['resp'] !== null ? round((float)$o['resp']) : null)) ?></td>
+                    <td><?= e(report_fmt_minutes($o['resp'] !== null ? round((float)$o['resp']) : null)) ?></td>
                 </tr>
             <?php endforeach; ?>
             </tbody>

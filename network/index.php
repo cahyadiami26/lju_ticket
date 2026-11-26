@@ -94,6 +94,10 @@ require_once __DIR__ . '/../includes/header.php';
                 <?php endforeach; ?>
             </select>
         </form>
+        <?php if ($it): ?>
+        <a href="<?= e(url('reports/export.php')) ?>?type=network&format=pdf&from=<?= e(date('Y-m-d', strtotime('-' . (int)$days . ' days'))) ?>&to=<?= e(date('Y-m-d')) ?>"
+           class="btn btn-ghost" target="_blank" rel="noopener">⬇ Export PDF</a>
+        <?php endif; ?>
         <a href="<?= e(url('tickets/create.php')) ?>?network=1" class="btn btn-primary">＋ Lapor Gangguan Jaringan</a>
     </div>
 </div>
