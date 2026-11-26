@@ -8,7 +8,7 @@
  * supaya koneksi opsional benar-benar bisa gagal tanpa mematikan halaman.
  */
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/constants.php';
 
 if (!function_exists('pdo_connect')) {
     /**
@@ -28,6 +28,22 @@ if (!function_exists('pdo_connect')) {
             return null;
         }
     }
+}
+
+// --- Validasi konfigurasi database (pesan jelas, bukan fatal error) ---
+$missingDbConfig = [];
+foreach (['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
+          'USERS_DB_HOST', 'USERS_DB_NAME', 'USERS_DB_USER', 'USERS_DB_PASS'] as $constName) {
+    if (!defined($constName)) {
+        $missingDbConfig[] = $constName;
+    }
+}
+if ($missingDbConfig) {
+    http_response_code(500);
+    exit('Konfigurasi database belum lengkap. Konstanta berikut belum ada di <code>config/config.php</code>: '
+        . implode(', ', array_map('htmlspecialchars', $missingDbConfig))
+        . '. Bandingkan config.php Anda dengan <code>config/config.example.php</code>, '
+        . 'atau buka <a href="' . htmlspecialchars(APP_URL) . '/install-check.php">install-check.php</a>.');
 }
 
 // --- Database helpdesk: WAJIB ---

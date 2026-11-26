@@ -4,7 +4,7 @@
  * Session SSO (LJU_APPS) di domain .lju.co.id akan ikut terhapus
  * karena cookie-nya sama; user diarahkan kembali ke Portal SSO.
  */
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/constants.php';
 require_once __DIR__ . '/includes/url.php';
 
 session_name('LJU_APPS');

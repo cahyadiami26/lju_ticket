@@ -4,7 +4,7 @@
  * Pilih user dari tabel `users` untuk mengisi session.
  * WAJIB nonaktif di production (DEV_MODE = false).
  */
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/constants.php';
 require_once __DIR__ . '/includes/url.php';
 
 if (!defined('DEV_MODE') || DEV_MODE !== true) {

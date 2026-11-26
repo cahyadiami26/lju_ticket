@@ -5,7 +5,7 @@
  * Jika belum login, redirect ke Portal SSO dengan parameter target.
  */
 
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/constants.php';
 require_once __DIR__ . '/url.php';
 
 ini_set('session.cookie_domain', '.lju.co.id');
@@ -41,3 +41,7 @@ if (empty($_SESSION['user_id'])) {
         . '&redirect_after_login=' . urlencode($current_url));
     exit;
 }
+
+// Setelah user terautentikasi: muat helper auth (sekaligus db.php & functions.php)
+// agar is_it(), current_user(), e(), dan $pdo/$usersPdo selalu tersedia di halaman.
+require_once __DIR__ . '/auth.php';

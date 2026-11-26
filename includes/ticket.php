@@ -11,16 +11,20 @@ require_once __DIR__ . '/functions.php';
 /** Generate nomor tiket unik: LJU-YYYYMMDD-XXXX (XXXX = urutan harian). */
 function generate_ticket_number($pdo) {
     $prefix = 'LJU-' . date('Ymd') . '-';
-    for ($attempt = 0; $attempt < 5; $attempt++) {
-        $stmt = $pdo->prepare('SELECT COUNT(*) AS c FROM tickets WHERE ticket_number LIKE ?');
-        $stmt->execute([$prefix . '%']);
-        $seq = (int)$stmt->fetch()['c'] + 1 + $attempt;
-        $number = $prefix . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
-        $check = $pdo->prepare('SELECT 1 FROM tickets WHERE ticket_number = ? LIMIT 1');
-        $check->execute([$number]);
-        if (!$check->fetch()) {
-            return $number;
+    try {
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $stmt = $pdo->prepare('SELECT COUNT(*) AS c FROM tickets WHERE ticket_number LIKE ?');
+            $stmt->execute([$prefix . '%']);
+            $seq = (int)$stmt->fetch()['c'] + 1 + $attempt;
+            $number = $prefix . str_pad((string)$seq, 4, '0', STR_PAD_LEFT);
+            $check = $pdo->prepare('SELECT 1 FROM tickets WHERE ticket_number = ? LIMIT 1');
+            $check->execute([$number]);
+            if (!$check->fetch()) {
+                return $number;
+            }
         }
+    } catch (Throwable $e) {
+        error_log('[TICKET NUMBER] ' . $e->getMessage());
     }
     // Fallback: tambahkan random suffix jika bentrok terus
     return $prefix . str_pad((string)(rand(1000, 9999)), 4, '0', STR_PAD_LEFT);

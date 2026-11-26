@@ -10,7 +10,7 @@ if (!function_exists('app_base_url')) {
         $dir = rtrim(dirname($script), '/');
 
         // Folder aplikasi = bagian sebelum segmen pertama yang dikenal
-        $known = ['tickets', 'admin', 'network', 'reports', 'monitoring', 'settings', 'ajax'];
+        $known = ['tickets', 'admin', 'network', 'reports', 'monitoring', 'settings', 'ajax', 'cron'];
         $parts = $dir === '' ? [] : explode('/', trim($dir, '/'));
         foreach ($parts as $i => $seg) {
             if (in_array($seg, $known, true)) {

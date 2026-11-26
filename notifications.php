@@ -11,15 +11,19 @@ require_once __DIR__ . '/includes/ticket.php';
 
 $user = current_user();
 
-// Tandai dibaca / hapus
+// Tandai dibaca / hapus (dibungkus try: kegagalan DB tidak boleh membuat halaman 500)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && csrf_check()) {
     $op = $_POST['op'] ?? '';
-    if ($op === 'read_all') {
-        $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?')->execute([$user['id']]);
-    } elseif ($op === 'read' && !empty($_POST['id'])) {
-        $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?')->execute([(int)$_POST['id'], $user['id']]);
-    } elseif ($op === 'delete' && !empty($_POST['id'])) {
-        $pdo->prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?')->execute([(int)$_POST['id'], $user['id']]);
+    try {
+        if ($op === 'read_all') {
+            $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ?')->execute([$user['id']]);
+        } elseif ($op === 'read' && !empty($_POST['id'])) {
+            $pdo->prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?')->execute([(int)$_POST['id'], $user['id']]);
+        } elseif ($op === 'delete' && !empty($_POST['id'])) {
+            $pdo->prepare('DELETE FROM notifications WHERE id = ? AND user_id = ?')->execute([(int)$_POST['id'], $user['id']]);
+        }
+    } catch (Throwable $e) {
+        error_log('[NOTIFIKASI] ' . $e->getMessage());
     }
     header('Location: ' . url('notifications.php'));
     exit;

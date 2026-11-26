@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ticket.php';
 require_once __DIR__ . '/../includes/network.php';
+require_once __DIR__ . '/../includes/notifier.php';
 
 $pageTitle = 'Buat Tiket Baru';
 

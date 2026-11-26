@@ -13,6 +13,7 @@ require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/reports.php';
 require_once __DIR__ . '/../includes/sla.php';
+require_once __DIR__ . '/../includes/network.php';
 require_once __DIR__ . '/../includes/pdf.php';
 require_it($pdo);
 
@@ -87,6 +88,10 @@ if ($format === 'csv' && $type === 'tickets') {
  * ============================================================ */
 $summary = report_summary($pdo, $from, $to);
 $body = '';
+
+// Pembungkus: kegagalan query (mis. migrasi batch belum dijalankan) tidak boleh
+// menghasilkan HTTP 500 tanpa penjelasan. Laporan tetap dibuat + catatan error.
+try {
 
 if ($type === 'summary') {
     $byCategory = report_by_category($pdo, $from, $to);
@@ -193,7 +198,6 @@ if ($type === 'summary') {
     } catch (Throwable $e) {
         error_log('[EXPORT NETWORK] ' . $e->getMessage());
     }
-    require_once __DIR__ . '/../includes/network.php';
     $typeLabels = network_types();
 
     $body .= kpi_rows([
@@ -239,6 +243,13 @@ if ($type === 'summary') {
 } else {
     http_response_code(400);
     exit('Jenis laporan tidak dikenal.');
+}
+
+} catch (Throwable $e) {
+    error_log('[EXPORT] ' . $e->getMessage());
+    $body .= '<div style="border:1px solid #fca5a5;background:#fef2f2;color:#991b1b;padding:10px 12px;margin:12px 0;font-size:12px">'
+        . '<strong>Sebagian data laporan tidak dapat dibaca.</strong> Kemungkinan migrasi database belum lengkap '
+        . '(lihat install-check.php). Detail: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
 }
 
 $subtitle = 'Periode: ' . $rangeLabel . ' · Dicetak oleh ' . current_user()['name'];

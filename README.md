@@ -75,8 +75,10 @@ lju_ticket/
 ├── config/
 │   ├── config.example.php   # Template konfigurasi (copy ke config.php)
 │   └── config.php           # Konfigurasi nyata (di-.gitignore, jangan commit)
+├── install-check.php       # Diagnostik tanpa login/DB (hapus setelah normal)
 ├── includes/
-│   ├── session.php          # SSO session + proteksi halaman
+│   ├── constants.php        # Kompatibilitas konstanta config (defensif)
+│   ├── session.php          # SSO session + proteksi halaman (memuat auth.php)
 │   ├── db.php               # Koneksi PDO (helpdesk + users)
 │   ├── url.php              # Base URL, url(), asset() untuk subfolder
 │   ├── auth.php             # Helper user, role, avatar, refresh session
@@ -99,7 +101,8 @@ lju_ticket/
 ├── database/
 │   ├── schema.sql           # Skema lengkap + seed (instalasi baru)
 │   ├── migration_batch4.sql # Migrasi modul jaringan (DB lama)
-│   └── migration_batch5.sql # Migrasi SLA & notifikasi (DB lama)
+│   ├── migration_batch5.sql # Migrasi SLA & notifikasi (DB lama)
+│   └── migration_batch7.sql # Migrasi monitoring MikroTik (DB lama)
 ├── cron/
 │   ├── sla.php              # Cron SLA & eskalasi (tiap 10 menit, token)
 │   └── mikrotik.php         # Cron sampling traffic MikroTik
@@ -337,3 +340,35 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `config/config.example.php`: `ENCRYPT_KEY`, `MIKROTIK_POLL_SECONDS`, `MIKROTIK_HISTORY_DAYS`.
 - `database/migration_batch7.sql`: kolom konfigurasi router, tabel `mikrotik_traffic_history`, seed interface contoh.
 - Persiapan router: `/ip service enable www-ssl` + user read-only `/user add name=helpdesk group=read password=...`.
+- `includes/constants.php`: lapisan kompatibilitas konfigurasi — mengisi nilai default untuk konstanta yang **belum** ada di `config/config.php` (config lama dari Batch 1 sering belum punya `ENCRYPT_KEY`, `LOGO_URL`, `DB_CHARSET`, `MIKROTIK_*`). Mencegah fatal *Undefined constant* tanpa menimpa nilai yang sudah diisi.
+
+---
+
+## Troubleshooting (Production)
+
+### `Call to undefined function is_it()` / `current_user()`
+Penyebab: `includes/session.php` lama tidak memuat `includes/auth.php`, sehingga helper auth belum tersedia saat `dashboard.php`, `tickets.php`, atau `profile.php` dieksekusi.
+
+Perbaikan (sudah ada di repo, cukup upload ulang):
+- `includes/session.php` memuat `auth.php` setelah autentikasi berhasil → `$pdo`, `$usersPdo`, `current_user()`, `is_it()`, `e()` selalu tersedia.
+- `includes/auth.php` memuat `db.php` + `url.php` + `functions.php`.
+- `tickets/create.php` memuat `notifier.php` (fungsi `notify_it_team_channels()`).
+
+### Halaman putih / HTTP ERROR 500
+1. Buka `https://helpdesk.lju.co.id/install-check.php` — diagnostik **tanpa login dan tanpa database**.
+   Memeriksa: versi PHP & ekstensi, keberadaan file wajib, isi `config/config.php`, konstanta wajib,
+   koneksi kedua database, kelengkapan **tabel & kolom** per batch, folder `uploads/`, domPDF, session.
+2. Jika masih 500, kirim 10 baris terakhir `error_log` (folder aplikasi atau **Error Log** cPanel).
+3. **Hapus `install-check.php` setelah aplikasi normal.**
+   File ini tidak menampilkan password atau kunci, tetapi membuka nama database/server — cukup untuk
+   proses go-live saja.
+
+### `Unknown column ...` / tabel tidak ada
+Migrasi belum dijalankan. Cek bagian *Migrasi database* dan jalankan `migration_batch4.sql`,
+`migration_batch5.sql`, `migration_batch7.sql` berurutan. `install-check.php` menampilkan daftar tabel
+dan kolom yang masih kurang beserta batch asalnya.
+
+### `Undefined constant` setelah update kode
+`config/config.php` di server lebih lama dari `config/config.example.php`. Tambahkan konstanta baru
+(lihat *Instalasi* langkah `ENCRYPT_KEY`), atau biarkan `includes/constants.php` mengisi default —
+hanya `ENCRYPT_KEY` yang wajib Anda isi sendiri.

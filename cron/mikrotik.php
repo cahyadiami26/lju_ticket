@@ -6,7 +6,7 @@
  * CLI  : php /path/to/lju_ticket/cron/mikrotik.php
  * HTTP : curl "https://helpdesk.lju.co.id/cron/mikrotik.php?token=TOKEN"
  */
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/constants.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/auth.php';
