@@ -124,7 +124,7 @@ lju_ticket/
 | Batch | Modul | Status |
 |-------|-------|--------|
 | **1** | **Fondasi** — Config, SSO session, layout, schema DB, dashboard skeleton, profil, README | ✅ Selesai |
-| **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ⬜ Belum |
+| **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ✅ Selesai |
 | **3** | **Ticket Management** — Assignment, prioritas, status, internal notes, transfer, reopen, history, eskalasi manual | ⬜ Belum |
 | **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ⬜ Belum |
 | **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ⬜ Belum |
@@ -139,13 +139,14 @@ lju_ticket/
 | Fitur | Keterangan | Status |
 |-------|------------|--------|
 | Dashboard karyawan | Ringkasan tiket yang dibuat | ✅ Batch 1 (skeleton, data real) |
-| Buat tiket baru | Formulir pengaduan / permintaan bantuan | ⬜ Batch 2 |
-| Tracking tiket | Memantau status penanganan | ⬜ Batch 2 |
-| Riwayat pengaduan | Daftar seluruh tiket sebelumnya | ⬜ Batch 2 |
-| Komunikasi tiket | Percakapan pelapor ↔ petugas IT | ⬜ Batch 2 |
-| Upload lampiran | Foto, screenshot, video, dokumen | ⬜ Batch 2 |
-| Rating layanan | Penilaian setelah tiket selesai | ⬜ Batch 2 |
-| FAQ / Knowledge Base | Panduan masalah umum | ⬜ Batch 2 |
+| Buat tiket baru | Formulir pengaduan / permintaan bantuan | ✅ Batch 2 (`tickets/create.php`) |
+| Tracking tiket | Memantau status penanganan | ✅ Batch 2 (`tickets.php` + `tickets/view.php`) |
+| Riwayat pengaduan | Daftar seluruh tiket sebelumnya | ✅ Batch 2 (filter status/kategori/cari + pagination) |
+| Komunikasi tiket | Percakapan pelapor ↔ petugas IT | ✅ Batch 2 (komentar + catatan internal IT) |
+| Upload lampiran | Foto, screenshot, video, dokumen | ✅ Batch 2 (maks 10 MB/file, validasi ekstensi) |
+| Rating layanan | Penilaian setelah tiket selesai | ✅ Batch 2 (1–5 bintang + komentar) |
+| FAQ / Knowledge Base | Panduan masalah umum | ✅ Batch 2 (`faq.php`) |
+| Kelola FAQ | Tambah/ubah/publikasi/hapus artikel oleh tim IT | ✅ Batch 2 (`admin/faq.php`) |
 
 Kategori pengaduan: Internet & jaringan, Aplikasi perusahaan, Komputer & laptop, Printer & scanner,
 Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi aplikasi, Layanan IT lainnya.
@@ -153,9 +154,9 @@ Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi a
 ### B. Ticket Management (Manajemen Tiket)
 | Fitur | Keterangan | Status |
 |-------|------------|--------|
-| Ticket Number | Nomor tiket otomatis (`LJU-YYYYMMDD-XXXX`) | ⬜ Batch 2/3 |
+| Ticket Number | Nomor tiket otomatis (`LJU-YYYYMMDD-XXXX`) | ✅ Batch 2 |
 | Ticket Assignment | Penugasan ke petugas | ⬜ Batch 3 |
-| Ticket Priority | Low, Medium, High, Critical | ⬜ Batch 3 |
+| Ticket Priority | Low, Medium, High, Critical | 🟡 Batch 2: dipilih pelapor, SLA otomatis · Batch 3: ubah oleh IT |
 | Ticket Status | Open, Assigned, In Progress, Waiting User, Resolved, Closed | ⬜ Batch 3 |
 | Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ⬜ Batch 3/5 |
 | Internal Notes | Catatan internal petugas | ⬜ Batch 3 |
@@ -216,3 +217,16 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
+
+### Batch 2 — Employee Portal (2026-11-26)
+- `includes/ticket.php`: generator nomor tiket `LJU-YYYYMMDD-XXXX`, pencatat history, notifikasi in-app (ke pelapor & tim IT), upload lampiran (validasi ekstensi/size, simpan di `uploads/tickets/`), hitung SLA due dari `sla_policies`.
+- `tickets/create.php`: form buat tiket (kategori, judul, deskripsi, prioritas, field jaringan kondisional untuk kategori network, upload lampiran), CSRF + validasi, notifikasi ke tim IT.
+- `tickets.php`: daftar/tracking tiket saya (tim IT: semua tiket) dengan filter status/kategori/pencarian + pagination.
+- `tickets/view.php`: detail tiket, lampiran (download + upload tambahan), komunikasi komentar (internal notes hanya untuk IT), rating layanan 1–5 setelah Resolved/Closed, timeline riwayat penanganan. Proteksi akses: hanya pemilik tiket atau tim IT.
+- `faq.php`: daftar + pencarian + detail artikel Knowledge Base (counter views).
+- `admin/faq.php`: pengelolaan artikel FAQ oleh tim IT (tambah/ubah/publikasi/hapus).
+- `includes/url.php`: `app_base_url()` + `url()`/`asset()` — path & redirect tetap benar dari subfolder (`tickets/`, `admin/`).
+- `includes/db.php` diperbaiki: `pdo_connect()` mengembalikan `null` bila gagal (tidak lagi `die()`), sehingga koneksi opsional DB users benar-benar opsional.
+- Filter user aktif bersifat opsional (`users_active_condition()`): aplikasi tetap berjalan bila tabel `users` tidak punya kolom `is_active`.
+- `assets/css/app.css`: komponen Batch 2 (kartu tiket, percakapan, timeline riwayat, lampiran, rating bintang, FAQ list, responsif mobile).
+- `uploads/tickets/.htaccess`: blokir eksekusi script di folder lampiran.

@@ -5,6 +5,6 @@
         </footer>
     </div>
 </div>
-<script src="assets/js/app.js"></script>
+<script src="<?= e(asset('assets/js/app.js')) ?>"></script>
 </body>
 </html>

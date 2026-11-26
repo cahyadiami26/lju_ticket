@@ -8,7 +8,30 @@
  */
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/url.php';
 require_once __DIR__ . '/functions.php';
+
+/** Cek apakah tabel users punya kolom tertentu (dipakai untuk filter opsional). */
+function users_has_column($usersPdo, $column) {
+    static $cache = [];
+    if (!$usersPdo) return false;
+    $key = spl_object_id($usersPdo) . ':' . $column;
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    try {
+        $stmt = $usersPdo->prepare('SHOW COLUMNS FROM users LIKE ?');
+        $stmt->execute([$column]);
+        $cache[$key] = (bool)$stmt->fetch();
+    } catch (Throwable $e) {
+        error_log('[AUTH COLUMN] ' . $e->getMessage());
+        $cache[$key] = false;
+    }
+    return $cache[$key];
+}
+
+/** Potongan WHERE tambahan untuk hanya memuat user aktif (jika kolomnya ada). */
+function users_active_condition($usersPdo) {
+    return users_has_column($usersPdo, 'is_active') ? 'is_active = 1' : '1 = 1';
+}
 
 /** Ambil satu baris user dari database users berdasarkan id. */
 function get_user_by_id($usersPdo, $userId) {
@@ -109,7 +132,7 @@ function is_it($pdo = null) {
 /** Proteksi: hanya IT/admin. Redirect ke dashboard jika tidak berhak. */
 function require_it($pdo = null) {
     if (!is_it($pdo)) {
-        header('Location: dashboard.php');
+        header('Location: ' . url('dashboard.php'));
         exit;
     }
 }

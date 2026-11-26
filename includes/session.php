@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/url.php';
 
 ini_set('session.cookie_domain', '.lju.co.id');
 session_name('LJU_APPS');
@@ -27,7 +28,7 @@ if (session_status() === PHP_SESSION_NONE) {
 if (empty($_SESSION['user_id'])) {
     // Mode development: arahkan ke demo login (tanpa SSO)
     if (defined('DEV_MODE') && DEV_MODE === true) {
-        header('Location: demo-login.php');
+        header('Location: ' . url('demo-login.php'));
         exit;
     }
 

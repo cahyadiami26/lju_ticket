@@ -1,10 +1,11 @@
 <?php
 /**
- * Dashboard — ringkasan tiket karyawan + ringkasan IT (Batch 1: skeleton dengan data real).
- * Detail lengkap: Batch 2 (Employee Portal) & Batch 6 (Reporting).
+ * Dashboard — ringkasan tiket karyawan + ringkasan IT.
+ * Analitik lengkap ada di Batch 6 (Reporting).
  */
 require_once __DIR__ . '/includes/session.php';
 require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/url.php';
 
 $pageTitle = 'Dashboard';
 require_once __DIR__ . '/includes/header.php';
@@ -15,6 +16,7 @@ $it = is_it($pdo);
 // --- Statistik tiket saya ---
 $myStats = ['total' => 0, 'open' => 0, 'progress' => 0, 'resolved' => 0];
 $myRecent = [];
+$myAttention = 0;
 try {
     $stmt = $pdo->prepare('SELECT COUNT(*) AS total FROM tickets WHERE user_id = ?');
     $stmt->execute([$user['id']]);
@@ -32,10 +34,16 @@ try {
     $stmt->execute([$user['id']]);
     $myStats['resolved'] = (int)$stmt->fetch()['c'];
 
+    $stmt = $pdo->prepare("SELECT COUNT(*) AS c FROM tickets WHERE user_id = ? AND status = 'waiting_user'");
+    $stmt->execute([$user['id']]);
+    $myAttention = (int)$stmt->fetch()['c'];
+
+    // Tiket yang menunggu tanggapan saya didahulukan
     $stmt = $pdo->prepare(
-        'SELECT t.*, c.name AS category_name FROM tickets t
+        "SELECT t.*, c.name AS category_name FROM tickets t
          LEFT JOIN categories c ON c.id = t.category_id
-         WHERE t.user_id = ? ORDER BY t.created_at DESC LIMIT 5'
+         WHERE t.user_id = ?
+         ORDER BY (t.status = 'waiting_user') DESC, t.created_at DESC LIMIT 5"
     );
     $stmt->execute([$user['id']]);
     $myRecent = $stmt->fetchAll();
@@ -68,10 +76,17 @@ if ($it) {
         </div>
     </div>
     <div class="quick-actions">
-        <a href="tickets/create.php" class="btn btn-primary">＋ Buat Tiket Baru</a>
-        <a href="faq.php" class="btn btn-ghost">FAQ / Knowledge Base</a>
+        <a href="<?= e(url('tickets/create.php')) ?>" class="btn btn-primary">＋ Buat Tiket Baru</a>
+        <a href="<?= e(url('faq.php')) ?>" class="btn btn-ghost">FAQ / Knowledge Base</a>
     </div>
 </div>
+
+<?php if ($myAttention > 0): ?>
+<div class="alert alert-info">
+    <strong><?= (int)$myAttention ?> tiket</strong> menunggu tanggapan Anda.
+    <a href="<?= e(url('tickets.php')) ?>?status=waiting_user">Lihat tiket</a>
+</div>
+<?php endif; ?>
 
 <div class="stats-grid">
     <div class="stat-card"><div class="stat-label">Total Tiket Saya</div><div class="stat-value"><?= (int)$myStats['total'] ?></div><div class="stat-sub">Semua pengaduan</div></div>
@@ -96,13 +111,13 @@ if ($it) {
 <div class="card">
     <div class="flex-between">
         <h3 class="card-title mb-0">Tiket Terakhir Saya</h3>
-        <a href="tickets.php" class="btn btn-sm btn-ghost">Lihat Semua</a>
+        <a href="<?= e(url('tickets.php')) ?>" class="btn btn-sm btn-ghost">Lihat Semua</a>
     </div>
     <?php if (empty($myRecent)): ?>
         <div class="empty-state">
             <div class="empty-icon">✉</div>
             <p>Belum ada tiket. Jika Anda mengalami kendala IT, silakan buat tiket baru.</p>
-            <a href="tickets/create.php" class="btn btn-primary">Buat Tiket</a>
+            <a href="<?= e(url('tickets/create.php')) ?>" class="btn btn-primary">Buat Tiket</a>
         </div>
     <?php else: ?>
         <div class="table-wrap">
@@ -111,7 +126,7 @@ if ($it) {
             <tbody>
             <?php foreach ($myRecent as $t): ?>
                 <tr>
-                    <td><a href="tickets/view.php?id=<?= (int)$t['id'] ?>"><?= e($t['ticket_number']) ?></a></td>
+                    <td><a href="<?= e(url('tickets/view.php')) ?>?id=<?= (int)$t['id'] ?>"><?= e($t['ticket_number']) ?></a></td>
                     <td><?= e($t['title']) ?></td>
                     <td><?= e($t['category_name'] ?? '-') ?></td>
                     <td><?= priority_badge($t['priority']) ?></td>

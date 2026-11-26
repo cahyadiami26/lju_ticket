@@ -1,5 +1,6 @@
 <?php
-/** Entry point — redirect ke dashboard (session sudah dicek di session.php). */
+/** Entry point — redirect ke dashboard (proteksi session ada di session.php). */
 require_once __DIR__ . '/includes/session.php';
-header('Location: dashboard.php');
+require_once __DIR__ . '/includes/url.php';
+header('Location: ' . url('dashboard.php'));
 exit;

@@ -94,3 +94,25 @@ if (!function_exists('priority_badge')) {
         return '<span class="badge ' . e($class) . '">' . e($label) . '</span>';
     }
 }
+
+if (!function_exists('history_label')) {
+    /** Label manusiawi untuk kolom ticket_history.action */
+    function history_label($action) {
+        $map = [
+            'created'          => 'Tiket dibuat',
+            'assigned'         => 'Ditugaskan ke petugas',
+            'status_changed'   => 'Status diubah',
+            'priority_changed' => 'Prioritas diubah',
+            'comment'          => 'Komentar ditambahkan',
+            'attachment'       => 'Lampiran ditambahkan',
+            'escalated'        => 'Tiket dieskalasi',
+            'transferred'      => 'Tiket ditransfer',
+            'reopened'         => 'Tiket dibuka kembali',
+            'resolved'         => 'Tiket diselesaikan',
+            'closed'           => 'Tiket ditutup',
+            'rated'            => 'Rating layanan diberikan',
+            'sla_breach'       => 'Melewati batas SLA',
+        ];
+        return $map[$action] ?? ucfirst(str_replace('_', ' ', (string)$action));
+    }
+}

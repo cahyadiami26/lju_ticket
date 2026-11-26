@@ -5,6 +5,7 @@
  * WAJIB nonaktif di production (DEV_MODE = false).
  */
 require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/url.php';
 
 if (!defined('DEV_MODE') || DEV_MODE !== true) {
     http_response_code(404);
@@ -26,7 +27,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Jika sudah login → ke dashboard
 if (!empty($_SESSION['user_id'])) {
-    header('Location: dashboard.php');
+    header('Location: ' . url('dashboard.php'));
     exit;
 }
 
@@ -38,7 +39,7 @@ $users = [];
 $error = '';
 if ($usersPdo) {
     try {
-        $users = $usersPdo->query('SELECT * FROM users WHERE is_active = 1 ORDER BY name LIMIT 100')->fetchAll();
+        $users = $usersPdo->query('SELECT * FROM users WHERE ' . users_active_condition($usersPdo) . ' ORDER BY name LIMIT 100')->fetchAll();
     } catch (Throwable $e) {
         $error = 'Gagal membaca tabel users: ' . $e->getMessage();
     }
@@ -55,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $row = get_user_by_id($usersPdo, $userId);
         if ($row) {
             set_session_from_user($row);
-            header('Location: dashboard.php');
+            header('Location: ' . url('dashboard.php'));
             exit;
         }
         $error = 'User tidak ditemukan.';
@@ -69,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Demo Login — <?= e(APP_NAME) ?></title>
 <link rel="icon" href="<?= e(LOGO_URL) ?>">
-<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="<?= e(asset('assets/css/app.css')) ?>">
 </head>
 <body>
 <div class="auth-wrap">
