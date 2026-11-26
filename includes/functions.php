@@ -112,6 +112,8 @@ if (!function_exists('history_label')) {
             'closed'           => 'Tiket ditutup',
             'rated'            => 'Rating layanan diberikan',
             'sla_breach'       => 'Melewati batas SLA',
+            'network_check'    => 'Pemeriksaan jaringan',
+            'technician_result'=> 'Hasil penanganan teknisi',
         ];
         return $map[$action] ?? ucfirst(str_replace('_', ' ', (string)$action));
     }

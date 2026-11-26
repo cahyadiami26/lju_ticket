@@ -8,6 +8,20 @@ require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/url.php';
 
 $pageTitle = 'Dashboard';
+
+// Statistik jaringan (khusus tim IT)
+$networkStats = ['total' => 0, 'aktif' => 0, 'ruangan' => 0, 'top_room' => '-'];
+if (is_it($pdo)) {
+    try {
+        $networkStats['total'] = (int)$pdo->query("SELECT COUNT(*) c FROM tickets WHERE is_network_complaint = 1 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetch()['c'];
+        $networkStats['aktif'] = (int)$pdo->query("SELECT COUNT(*) c FROM tickets WHERE is_network_complaint = 1 AND status NOT IN ('resolved','closed')")->fetch()['c'];
+        $networkStats['ruangan'] = (int)$pdo->query("SELECT COUNT(DISTINCT COALESCE(room_id, location_room)) c FROM tickets WHERE is_network_complaint = 1 AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetch()['c'];
+        $row = $pdo->query("SELECT COALESCE(r.name, t.location_room, '-') AS room_name, COUNT(*) c FROM tickets t LEFT JOIN rooms r ON r.id = t.room_id WHERE t.is_network_complaint = 1 GROUP BY room_name ORDER BY c DESC LIMIT 1")->fetch();
+        if ($row) $networkStats['top_room'] = $row['room_name'];
+    } catch (Throwable $e) {
+        error_log('[DASH NETWORK] ' . $e->getMessage());
+    }
+}
 require_once __DIR__ . '/includes/header.php';
 
 $user = current_user();
@@ -96,6 +110,19 @@ if ($it) {
 </div>
 
 <?php if ($itStats): ?>
+<div class="card">
+    <div class="flex-between">
+        <h3 class="card-title mb-0">Gangguan Jaringan (30 hari terakhir)</h3>
+        <a href="<?= e(url('network/index.php')) ?>" class="btn btn-sm btn-ghost">Buka Modul Jaringan</a>
+    </div>
+    <div class="stats-grid" style="margin-bottom:0">
+        <div class="stat-card"><div class="stat-label">Total Gangguan</div><div class="stat-value"><?= (int)$networkStats['total'] ?></div></div>
+        <div class="stat-card"><div class="stat-label">Masih Aktif</div><div class="stat-value" style="color:var(--warning)"><?= (int)$networkStats['aktif'] ?></div></div>
+        <div class="stat-card"><div class="stat-label">Ruangan Terdampak</div><div class="stat-value"><?= (int)$networkStats['ruangan'] ?></div></div>
+        <div class="stat-card"><div class="stat-label">Gangguan Terbanyak</div><div class="stat-value" style="font-size:16px"><?= e($networkStats['top_room']) ?></div></div>
+    </div>
+</div>
+
 <div class="card">
     <h3 class="card-title">Ringkasan IT (Seluruh Tiket)</h3>
     <div class="stats-grid" style="margin-bottom:0">

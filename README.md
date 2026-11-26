@@ -126,7 +126,7 @@ lju_ticket/
 | **1** | **Fondasi** — Config, SSO session, layout, schema DB, dashboard skeleton, profil, README | ✅ Selesai |
 | **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ✅ Selesai |
 | **3** | **Ticket Management** — Assignment, prioritas, status, eskalasi, internal notes, transfer, reopen, history, SLA | ✅ Selesai |
-| **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ⬜ Belum |
+| **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ✅ Selesai |
 | **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ⬜ Belum |
 | **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ⬜ Belum |
 | **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ⬜ Belum |
@@ -171,12 +171,12 @@ Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi a
 ### C. Network & Internet Complaint
 | Fitur | Status |
 |-------|--------|
-| Pelaporan internet lambat / terputus / WiFi / LAN / tidak stabil | ⬜ Batch 4 |
-| Gangguan akses aplikasi internal | ⬜ Batch 4 |
-| Identifikasi lokasi gangguan (ruangan) | ⬜ Batch 4 |
-| Hasil pemeriksaan teknisi | ⬜ Batch 4 |
-| Perangkat jaringan bermasalah | ⬜ Batch 4 |
-| Riwayat gangguan per ruangan | ⬜ Batch 4 |
+| Pelaporan internet lambat / terputus / WiFi / LAN / tidak stabil | ✅ Batch 4 (7 jenis gangguan) |
+| Gangguan akses aplikasi internal | ✅ Batch 4 |
+| Identifikasi lokasi gangguan (ruangan) | ✅ Batch 4 (master `rooms` 10 ruangan + lokasi bebas) |
+| Hasil pemeriksaan teknisi | ✅ Batch 4 (hasil + tindakan + checklist uji) |
+| Perangkat jaringan bermasalah | ✅ Batch 4 (8 jenis perangkat) |
+| Riwayat gangguan per ruangan | ✅ Batch 4 (`network/index.php` + filter ruangan) |
 
 ### D. SLA & Escalation Management
 | Prioritas | Contoh gangguan | Respons awal | Target penyelesaian |
@@ -204,6 +204,12 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 
 ---
 
+### Migrasi database (bila sudah pernah import schema lama)
+- Batch 4 menambah tabel `rooms` + `network_checks` dan kolom `room_id`, `technician_action`, `checked_at`.
+- Jalankan: `mysql -u user -p lju_helpdesk < database/migration_batch4.sql`
+- Instalasi baru cukup import `database/schema.sql` (sudah lengkap).
+
+---
 ## Changelog
 
 ### Batch 1 — Fondasi (2026-11-26)
@@ -214,9 +220,18 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `includes/functions.php`: escaping, CSRF, format tanggal, badge status/prioritas.
 - `includes/header.php`, `sidebar.php`, `footer.php`: layout clean & elegan, responsif.
 - `assets/css/app.css`, `assets/js/app.js`: stylesheet + JS vanilla (tanpa framework/CDN wajib).
-- `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings` + seed kategori, SLA, FAQ contoh.
+- `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings`, `rooms`, `network_checks` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
+
+### Batch 4 — Network & Internet Complaint (2026-11-26)
+- `database/schema.sql`: tabel baru `rooms` (10 ruangan contoh) + `network_checks` (checklist pemeriksaan); kolom baru pada `tickets` = `room_id`, `technician_action`, `checked_at`.
+- `database/migration_batch4.sql`: migrasi untuk database yang sudah berjalan dari Batch 1–3 (termasuk pengisian `room_id` tiket lama berdasarkan nama ruangan).
+- `includes/network.php`: `network_types()`, `network_check_types()`, `network_device_types()`, `get_rooms()`, `room_label()`, `network_summary_by_room()`, `network_summary_by_type()`, `network_tickets_by_room()`, `add_network_check()`, `save_technician_result()`.
+- `network/index.php`: dashboard gangguan jaringan — kartu statistik, grafik bar sebaran per ruangan & per jenis gangguan, chip ruangan (klik untuk riwayat), filter periode 7/30/90/365 hari. Karyawan hanya melihat data miliknya, tim IT melihat seluruh kantor.
+- `tickets/create.php`: kategori jaringan memakai **dropdown ruangan** + isian lokasi bebas + **perangkat yang diduga bermasalah**; mendukung prasetel `?network=1`.
+- `tickets/view.php`: kartu **Penanganan Jaringan** — hasil pemeriksaan + tindakan perbaikan, checklist pemeriksaan (ping/speedtest/sinyal WiFi/port LAN/perangkat), form input tim IT, `checked_at` otomatis, notifikasi ke pelapor.
+- `dashboard.php`: kartu ringkasan gangguan jaringan 30 hari (total, aktif, ruangan terdampak, ruangan terbanyak).
 
 ### Batch 3 — Ticket Management (2026-11-26)
 - `includes/ticket_actions.php`: pusat logika manajemen tiket — `change_ticket_status()`, `change_ticket_priority()`, `assign_ticket()`, `transfer_ticket()`, `escalate_ticket()`, `reopen_ticket()`, `get_it_staff()`, `get_ticket()`. Semua aksi mencatat `ticket_history` dan mengirim notifikasi in-app.

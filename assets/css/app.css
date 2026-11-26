@@ -236,3 +236,31 @@ a.stat-card:hover { text-decoration: none; border-color: var(--primary); box-sha
     .notif-item { flex-wrap: wrap; }
     .notif-actions { width: 100%; justify-content: flex-end; }
 }
+
+/* ============ Batch 4: Network & Internet Complaint ============ */
+.bar-list { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 1fr; gap: 6px; color: var(--text); padding: 4px 0; }
+.bar-row:hover { text-decoration: none; }
+.bar-row:hover .bar-fill { filter: brightness(1.08); }
+.bar-label { font-size: 13px; font-weight: 600; }
+.bar-track { display: block; height: 8px; background: #eef2f8; border-radius: 999px; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: linear-gradient(90deg, var(--primary), #4b9bea); border-radius: 999px; }
+.bar-fill.alt { background: linear-gradient(90deg, var(--accent), #57d6c9); }
+.bar-value { font-size: 12px; color: var(--muted); }
+
+.room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.room-card { display: block; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); }
+.room-card:hover { border-color: var(--primary); background: #f8fbff; text-decoration: none; }
+.room-name { font-weight: 700; font-size: 13px; }
+.room-meta { font-size: 11px; color: var(--muted); margin-top: 2px; min-height: 15px; }
+.room-count { font-size: 12px; margin-top: 8px; color: var(--primary); font-weight: 600; }
+
+/* Hasil pemeriksaan teknisi */
+.check-list { list-style: none; padding: 0; margin: 0; }
+.check-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: #fbfcfe; }
+.check-type { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
+.check-result { font-weight: 600; font-size: 13px; }
+.check-notes { font-size: 12px; color: var(--muted); white-space: pre-wrap; }
+
+.network-banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: linear-gradient(135deg, #eaf3fd, #f2fbfa); border: 1px solid #cfe3f7; margin-bottom: 18px; }
+.network-banner .nb-icon { font-size: 22px; line-height: 1; }

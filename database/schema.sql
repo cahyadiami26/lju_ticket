@@ -24,6 +24,21 @@ CREATE TABLE IF NOT EXISTS categories (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ------------------------------------------------------------
+-- Ruangan / lokasi (untuk riwayat gangguan jaringan per ruangan)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS rooms (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name        VARCHAR(120) NOT NULL COMMENT 'Nama ruangan',
+  building    VARCHAR(80)  DEFAULT NULL COMMENT 'Gedung',
+  floor       VARCHAR(40)  DEFAULT NULL COMMENT 'Lantai',
+  notes       VARCHAR(255) DEFAULT NULL,
+  is_active   TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_rooms_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ------------------------------------------------------------
 -- Tiket utama
 -- status: open | assigned | in_progress | waiting_user | resolved | closed
 -- priority: low | medium | high | critical
@@ -48,6 +63,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   location_room       VARCHAR(150) DEFAULT NULL COMMENT 'Lokasi/ruangan gangguan',
   affected_device     VARCHAR(255) DEFAULT NULL COMMENT 'Perangkat jaringan bermasalah',
   technician_result   TEXT         DEFAULT NULL COMMENT 'Hasil pemeriksaan teknisi',
+  technician_action   TEXT         DEFAULT NULL COMMENT 'Tindakan perbaikan yang dilakukan',
+  room_id             INT UNSIGNED DEFAULT NULL COMMENT 'FK ke rooms.id',
+  checked_at          DATETIME     DEFAULT NULL COMMENT 'Waktu pemeriksaan teknisi',
   sla_due_at          DATETIME     DEFAULT NULL,
   responded_at        DATETIME     DEFAULT NULL,
   resolved_at         DATETIME     DEFAULT NULL,
@@ -63,7 +81,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   KEY idx_tickets_priority (priority),
   KEY idx_tickets_assigned (assigned_to),
   KEY idx_tickets_created (created_at),
-  CONSTRAINT fk_tickets_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+  KEY idx_tickets_room (room_id),
+  CONSTRAINT fk_tickets_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL,
+  CONSTRAINT fk_tickets_room FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ------------------------------------------------------------
@@ -115,6 +135,24 @@ CREATE TABLE IF NOT EXISTS ticket_history (
   PRIMARY KEY (id),
   KEY idx_history_ticket (ticket_id),
   CONSTRAINT fk_history_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ------------------------------------------------------------
+-- Pemeriksaan jaringan oleh teknisi (checklist hasil pengujian)
+-- check_type: ping | speedtest | wifi_signal | lan_port | traceroute | lainnya
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS network_checks (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ticket_id   INT UNSIGNED NOT NULL,
+  user_id     INT          DEFAULT NULL,
+  user_name   VARCHAR(100) DEFAULT NULL,
+  check_type  VARCHAR(50)  NOT NULL DEFAULT 'lainnya',
+  result      VARCHAR(255) DEFAULT NULL COMMENT 'Ringkasan hasil pengujian',
+  notes       TEXT         DEFAULT NULL,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_checks_ticket (ticket_id),
+  CONSTRAINT fk_checks_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ------------------------------------------------------------
@@ -210,6 +248,19 @@ CREATE TABLE IF NOT EXISTS system_settings (
 -- ============================================================
 -- SEED DATA
 -- ============================================================
+
+INSERT INTO rooms (name, building, floor) VALUES
+('Ruang Direksi', 'Gedung Utama', 'Lantai 3'),
+('Ruang Keuangan', 'Gedung Utama', 'Lantai 2'),
+('Ruang Akuntansi', 'Gedung Utama', 'Lantai 2'),
+('Ruang SDM', 'Gedung Utama', 'Lantai 2'),
+('Ruang Umum', 'Gedung Utama', 'Lantai 1'),
+('Ruang IT', 'Gedung Utama', 'Lantai 1'),
+('Ruang Pelayanan Pelanggan', 'Gedung Utama', 'Lantai 1'),
+('Ruang Rapat', 'Gedung Utama', 'Lantai 3'),
+('Gudang', 'Gedung Belakang', 'Lantai 1'),
+('Pos Keamanan', 'Area Depan', 'Lantai 1')
+ON DUPLICATE KEY UPDATE building = VALUES(building), floor = VALUES(floor);
 
 INSERT INTO categories (name, slug, icon, description, is_network, sort_order) VALUES
 ('Internet dan Jaringan', 'internet-jaringan', '◉', 'Gangguan koneksi internet, WiFi, LAN, dan infrastruktur jaringan.', 1, 1),

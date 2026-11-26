@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ticket.php';
 require_once __DIR__ . '/../includes/ticket_actions.php';
+require_once __DIR__ . '/../includes/network.php';
 
 $user = current_user();
 $it = is_it($pdo);
@@ -209,6 +210,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// --- POST: pemeriksaan jaringan & hasil teknisi (khusus IT) ---
+$netMsg = '';
+$netErr = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($_POST['action'] ?? '', ['net_check', 'tech_result'], true)) {
+    if (!$it) {
+        $netErr = 'Hanya tim IT yang dapat mengisi hasil pemeriksaan.';
+    } elseif (!csrf_check()) {
+        $netErr = 'Token keamanan tidak valid.';
+    } elseif ($_POST['action'] === 'net_check') {
+        $res = add_network_check($pdo, $ticketId, $user, $_POST['check_type'] ?? '', $_POST['result'] ?? '', trim($_POST['notes'] ?? ''));
+        if ($res['ok']) {
+            header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&updated=1');
+            exit;
+        }
+        $netErr = $res['message'];
+    } else {
+        $res = save_technician_result($pdo, $ticket, $user, [
+            'room_id'           => $_POST['room_id'] ?? 0,
+            'location_room'     => $_POST['location_room'] ?? '',
+            'affected_device'   => $_POST['affected_device'] ?? '',
+            'technician_result' => $_POST['technician_result'] ?? '',
+            'technician_action' => $_POST['technician_action'] ?? '',
+        ]);
+        if ($res['ok']) {
+            header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&updated=1');
+            exit;
+        }
+        $netErr = $res['message'];
+    }
+}
+
 // --- Data pendukung ---
 $comments = [];
 $attachments = [];
@@ -233,6 +265,11 @@ $canRate = in_array($ticket['status'], ['resolved', 'closed'], true) && empty($t
 $created = isset($_GET['created']);
 $updated = isset($_GET['updated']);
 $itStaff = $it ? get_it_staff($pdo, $usersPdo) : [];
+$networkChecks = get_network_checks($pdo, $ticketId);
+$rooms = get_rooms($pdo);
+$netTypes = network_types();
+$checkTypes = network_check_types();
+$deviceTypes = network_device_types();
 $sla = sla_state($ticket);
 
 require_once __DIR__ . '/../includes/header.php';
@@ -249,6 +286,9 @@ require_once __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 <?php if (!empty($ownerErr)): ?>
     <div class="alert alert-error"><?= e($ownerErr) ?></div>
+<?php endif; ?>
+<?php if (!empty($netErr)): ?>
+    <div class="alert alert-error"><?= e($netErr) ?></div>
 <?php endif; ?>
 
 <div class="flex-between" style="margin-bottom:16px">
@@ -269,7 +309,10 @@ require_once __DIR__ . '/../includes/header.php';
             <tr><th>Target SLA</th><td><?= e(format_date($ticket['sla_due_at'])) ?> · <?= sla_badge($ticket) ?></td></tr>
             <?php endif; ?>
             <?php if (!empty($ticket['network_type'])): ?>
-            <tr><th>Jenis Gangguan</th><td><?= e($ticket['network_type']) ?></td></tr>
+            <tr><th>Jenis Gangguan</th><td><?= e($netTypes[$ticket['network_type']] ?? $ticket['network_type']) ?></td></tr>
+            <?php endif; ?>
+            <?php if (!empty($ticket['checked_at'])): ?>
+            <tr><th>Waktu Pemeriksaan</th><td><?= e(format_date($ticket['checked_at'])) ?></td></tr>
             <?php endif; ?>
             <?php if (!empty($ticket['location_room'])): ?>
             <tr><th>Lokasi / Ruangan</th><td><?= e($ticket['location_room']) ?></td></tr>
@@ -409,6 +452,107 @@ if ($isOwner && in_array($ticket['status'], ['resolved', 'closed'], true)):
         Alur status: <strong>Open → Assigned → In Progress → Waiting User → Resolved → Closed</strong>.
         <em>Resolved</em> = IT menyatakan selesai, <em>Closed</em> = dikonfirmasi/ditutup sesuai kebijakan.
     </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($ticket['is_network_complaint']) || $networkChecks): ?>
+<div class="card">
+    <h3 class="card-title">Penanganan Jaringan</h3>
+
+    <?php if (!empty($ticket['technician_result'])): ?>
+        <div class="network-banner">
+            <div class="nb-icon">🛠</div>
+            <div>
+                <strong>Hasil Pemeriksaan Teknisi</strong>
+                <div style="white-space:pre-wrap"><?= e($ticket['technician_result']) ?></div>
+                <?php if (!empty($ticket['technician_action'])): ?>
+                    <div style="margin-top:6px"><strong>Tindakan:</strong> <span style="white-space:pre-wrap"><?= e($ticket['technician_action']) ?></span></div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($networkChecks)): ?>
+        <h4 style="margin:14px 0 8px">Checklist Pemeriksaan (<?= count($networkChecks) ?>)</h4>
+        <ul class="check-list">
+            <?php foreach ($networkChecks as $nc): ?>
+                <li class="check-item">
+                    <div class="check-type"><?= e($checkTypes[$nc['check_type']] ?? $nc['check_type']) ?> · <?= e(format_date($nc['created_at'])) ?></div>
+                    <div class="check-result"><?= e($nc['result']) ?></div>
+                    <?php if (!empty($nc['notes'])): ?><div class="check-notes"><?= e($nc['notes']) ?></div><?php endif; ?>
+                    <div class="text-muted text-sm">oleh <?= e($nc['user_name'] ?? '-') ?></div>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    <?php elseif (empty($ticket['technician_result'])): ?>
+        <p class="text-muted">Belum ada hasil pemeriksaan jaringan.</p>
+    <?php endif; ?>
+
+    <?php if ($it && !empty($ticket['is_network_complaint'])): ?>
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+
+    <h4 style="margin:0 0 10px">Input Hasil Penanganan Teknisi</h4>
+    <form method="post">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="tech_result">
+        <div class="action-grid">
+            <div class="form-group" style="margin-bottom:0">
+                <label for="room_id">Ruangan</label>
+                <select id="room_id" name="room_id" class="form-control">
+                    <option value="0">— Tidak berubah —</option>
+                    <?php foreach ($rooms as $r): ?>
+                        <option value="<?= (int)$r['id'] ?>"<?= (int)($ticket['room_id'] ?? 0) === (int)$r['id'] ? ' selected' : '' ?>><?= e(room_label($r)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="affected_device">Perangkat Bermasalah</label>
+                <select id="affected_device" name="affected_device" class="form-control">
+                    <option value="">— Tidak diketahui —</option>
+                    <?php foreach ($deviceTypes as $d): ?>
+                        <option value="<?= e($d) ?>"<?= ($ticket['affected_device'] ?? '') === $d ? ' selected' : '' ?>><?= e($d) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+            <label for="technician_result">Hasil Pemeriksaan *</label>
+            <textarea id="technician_result" name="technician_result" class="form-control" placeholder="Contoh: kabel LAN di port 12 putus, ping gateway timeout"><?= e($ticket['technician_result'] ?? '') ?></textarea>
+        </div>
+        <div class="form-group">
+            <label for="technician_action">Tindakan Perbaikan</label>
+            <textarea id="technician_action" name="technician_action" class="form-control" style="min-height:80px" placeholder="Contoh: mengganti kabel patch cord, restart access point lantai 2"><?= e($ticket['technician_action'] ?? '') ?></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Simpan Hasil Penanganan</button>
+    </form>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+
+    <h4 style="margin:0 0 10px">Tambah Checklist Pemeriksaan</h4>
+    <form method="post">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="net_check">
+        <div class="action-grid">
+            <div class="form-group" style="margin-bottom:0">
+                <label for="check_type">Jenis Pemeriksaan</label>
+                <select id="check_type" name="check_type" class="form-control">
+                    <?php foreach ($checkTypes as $k => $v): ?>
+                        <option value="<?= e($k) ?>"><?= e($v) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label for="result">Hasil Singkat *</label>
+                <input type="text" id="result" name="result" class="form-control" maxlength="255" placeholder="Contoh: ping 8.8.8.8 = 320 ms, 15% loss">
+            </div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
+            <label for="notes">Catatan (opsional)</label>
+            <input type="text" id="notes" name="notes" class="form-control" maxlength="255" placeholder="Keterangan tambahan">
+        </div>
+        <button type="submit" class="btn btn-ghost">Tambah Pemeriksaan</button>
+    </form>
+    <?php endif; ?>
 </div>
 <?php endif; ?>
 

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ticket.php';
+require_once __DIR__ . '/../includes/network.php';
 
 $pageTitle = 'Buat Tiket Baru';
 
@@ -19,19 +20,23 @@ try {
     error_log('[CREATE] ' . $e->getMessage());
 }
 
-$networkTypes = [
-    '' => '— Pilih jenis gangguan jaringan —',
-    'internet_lambat' => 'Internet lambat',
-    'internet_putus' => 'Internet terputus',
-    'wifi' => 'WiFi tidak dapat terhubung',
-    'lan' => 'LAN tidak berfungsi',
-    'tidak_stabil' => 'Jaringan tidak stabil',
-    'akses_aplikasi' => 'Gangguan akses aplikasi internal',
-    'lainnya' => 'Lainnya',
-];
+$networkTypes = ['' => '— Pilih jenis gangguan jaringan —'] + network_types();
+$rooms = get_rooms($pdo);
+$deviceTypes = network_device_types();
 
 $errors = [];
-$old = ['category_id' => '', 'title' => '', 'description' => '', 'priority' => 'medium', 'network_type' => '', 'location_room' => ''];
+$old = ['category_id' => '', 'title' => '', 'description' => '', 'priority' => 'medium',
+        'network_type' => '', 'room_id' => 0, 'location_room' => '', 'affected_device' => ''];
+
+// Prasetel kategori jaringan bila datang dari menu Pengaduan Jaringan
+if (empty($_POST) && !empty($_GET['network']) && empty($old['category_id'])) {
+    foreach ($categories as $c) {
+        if ((int)$c['is_network'] === 1) {
+            $old['category_id'] = (int)$c['id'];
+            break;
+        }
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_check()) {
@@ -43,7 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old['description'] = trim($_POST['description'] ?? '');
     $old['priority'] = $_POST['priority'] ?? 'medium';
     $old['network_type'] = $_POST['network_type'] ?? '';
+    $old['room_id'] = (int)($_POST['room_id'] ?? 0);
     $old['location_room'] = trim($_POST['location_room'] ?? '');
+    $old['affected_device'] = trim($_POST['affected_device'] ?? '');
 
     if (!$old['category_id']) $errors[] = 'Kategori wajib dipilih.';
     if (mb_strlen($old['title']) < 5) $errors[] = 'Judul minimal 5 karakter.';
@@ -61,6 +68,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isNetwork && $old['network_type'] === '') {
         $errors[] = 'Untuk kategori jaringan, jenis gangguan wajib dipilih.';
     }
+    // Nama ruangan mengikuti pilihan daftar ruangan bila ada
+    if ($isNetwork && $old['room_id'] > 0) {
+        foreach ($rooms as $r) {
+            if ((int)$r['id'] === $old['room_id']) {
+                $old['location_room'] = $r['name'];
+                break;
+            }
+        }
+    }
 
     if (empty($errors)) {
         $ticketNumber = generate_ticket_number($pdo);
@@ -70,8 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'INSERT INTO tickets
                  (ticket_number, user_id, user_name, user_email, nama_bidang, nama_divisi,
                   category_id, title, description, priority, status,
-                  is_network_complaint, network_type, location_room, sla_due_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                  is_network_complaint, network_type, room_id, location_room, affected_device, sla_due_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $ticketNumber, $user['id'], $user['name'], $user['email'],
@@ -79,7 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $old['category_id'], $old['title'], $old['description'],
                 $old['priority'], 'open',
                 $isNetwork, $isNetwork ? $old['network_type'] : null,
-                $isNetwork ? $old['location_room'] : null, $slaDue
+                ($isNetwork && $old['room_id'] > 0) ? $old['room_id'] : null,
+                $isNetwork ? ($old['location_room'] ?: null) : null,
+                $isNetwork ? ($old['affected_device'] ?: null) : null,
+                $slaDue
             ]);
             $ticketId = (int)$pdo->lastInsertId();
 
@@ -145,8 +164,25 @@ require_once __DIR__ . '/../includes/header.php';
                 </select>
             </div>
             <div class="form-group">
-                <label for="location_room">Lokasi / Ruangan Gangguan</label>
-                <input type="text" id="location_room" name="location_room" class="form-control" placeholder="Contoh: Gedung A Lantai 2 Ruang Keuangan" value="<?= e($old['location_room']) ?>">
+                <label for="room_id">Ruangan / Lokasi Gangguan</label>
+                <select id="room_id" name="room_id" class="form-control">
+                    <option value="0">— Pilih ruangan —</option>
+                    <?php foreach ($rooms as $r): ?>
+                        <option value="<?= (int)$r['id'] ?>"<?= (int)$old['room_id'] === (int)$r['id'] ? ' selected' : '' ?>><?= e(room_label($r)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="text" id="location_room" name="location_room" class="form-control" style="margin-top:8px"
+                       placeholder="Atau tulis lokasi lain (mis. ruang meeting lantai 3)"
+                       value="<?= e($old['location_room']) ?>">
+            </div>
+            <div class="form-group">
+                <label for="affected_device">Perangkat yang Diduga Bermasalah</label>
+                <select id="affected_device" name="affected_device" class="form-control">
+                    <option value="">— Tidak diketahui / lain-lain —</option>
+                    <?php foreach ($deviceTypes as $d): ?>
+                        <option value="<?= e($d) ?>"<?= $old['affected_device'] === $d ? ' selected' : '' ?>><?= e($d) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
 

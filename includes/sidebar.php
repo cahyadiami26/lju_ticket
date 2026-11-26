@@ -15,7 +15,7 @@ $nav = [
     ['admin/tickets.php', 'Manajemen Tiket', '⚙', $it],
     ['admin/faq.php', 'Kelola FAQ', '✎', $it],
     // Batch 4 (Network Complaint)
-    ['network/index.php', 'Pengaduan Jaringan', '◉', false],
+    ['network/index.php', 'Pengaduan Jaringan', '◉', true],
     // Batch 6 (Reporting) — hanya IT
     ['reports/index.php', 'Laporan & Analitik', '▤', false],
     // Batch 7 (MikroTik Monitoring) — hanya IT
