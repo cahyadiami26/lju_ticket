@@ -244,13 +244,20 @@ CREATE TABLE IF NOT EXISTS it_staff (
 -- Pengaturan MikroTik (Batch 7) — satu baris konfigurasi
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS mikrotik_settings (
-  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  host_url   VARCHAR(255) DEFAULT NULL COMMENT 'Contoh: https://192.168.1.1',
-  username   VARCHAR(100) DEFAULT NULL,
-  password   VARCHAR(255) DEFAULT NULL COMMENT 'Simpan terenkripsi di production',
-  is_active  TINYINT(1)   NOT NULL DEFAULT 0,
-  created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  host_url          VARCHAR(255) DEFAULT NULL COMMENT 'Contoh: https://192.168.1.1',
+  username          VARCHAR(100) DEFAULT NULL,
+  password          VARCHAR(255) DEFAULT NULL COMMENT 'Terenkripsi (AES-256 via ENCRYPT_KEY)',
+  verify_ssl        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '1 = verifikasi sertifikat HTTPS',
+  is_active         TINYINT(1)   NOT NULL DEFAULT 0,
+  last_check_at     DATETIME     DEFAULT NULL,
+  last_check_status VARCHAR(20)  DEFAULT NULL COMMENT 'ok|error',
+  last_check_message VARCHAR(255) DEFAULT NULL,
+  router_board      VARCHAR(100) DEFAULT NULL,
+  router_version    VARCHAR(50)  DEFAULT NULL,
+  router_uptime     VARCHAR(50)  DEFAULT NULL,
+  created_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -262,6 +269,20 @@ CREATE TABLE IF NOT EXISTS mikrotik_interfaces (
   sort_order     INT          NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   UNIQUE KEY uq_mikrotik_iface (interface_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ------------------------------------------------------------
+-- Riwayat traffic interface (untuk grafik, diisi cron/monitoring)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mikrotik_traffic_history (
+  id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  interface_name VARCHAR(100) NOT NULL,
+  rx_bps         BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  tx_bps         BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  recorded_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_traffic_iface (interface_name, recorded_at),
+  KEY idx_traffic_time (recorded_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ------------------------------------------------------------
@@ -329,5 +350,7 @@ INSERT INTO system_settings (setting_key, setting_value) VALUES
 ('email_from_name', 'LJU IT Helpdesk'),
 ('whatsapp_api_url', 'https://api.fonnte.com/send'),
 ('whatsapp_token', ''),
-('cron_token', 'ganti_token_cron_anda')
+('cron_token', 'ganti_token_cron_anda'),
+('mikrotik_poll_seconds', '60'),
+('mikrotik_history_days', '7')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);

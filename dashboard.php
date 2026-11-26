@@ -110,6 +110,43 @@ if ($it) {
 </div>
 
 <?php if ($itStats): ?>
+<?php
+$mkConfigured = false;
+$mkStatus = null;
+$mkMessage = '';
+try {
+    $mk = $pdo->query('SELECT host_url, is_active, last_check_at, last_check_status, last_check_message, router_board, router_version FROM mikrotik_settings ORDER BY id LIMIT 1')->fetch();
+    if ($mk && !empty($mk['host_url'])) {
+        $mkConfigured = true;
+        $mkStatus = $mk['last_check_status'];
+        $mkMessage = trim(($mk['router_board'] ? $mk['router_board'] . ' · RouterOS ' . $mk['router_version'] . ' · ' : '') . (string)$mk['last_check_message']);
+    }
+} catch (Throwable $e) {
+    error_log('[DASH MIKROTIK] ' . $e->getMessage());
+}
+?>
+<div class="card">
+    <div class="flex-between">
+        <h3 class="card-title mb-0">Status Router MikroTik</h3>
+        <a href="<?= e(url('monitoring/index.php')) ?>" class="btn btn-sm btn-ghost">Buka Monitoring</a>
+    </div>
+    <?php if (!$mkConfigured): ?>
+        <p class="text-muted mb-0">Monitoring MikroTik belum dikonfigurasi.
+            <a href="<?= e(url('monitoring/settings.php')) ?>">Atur koneksi router</a>.</p>
+    <?php else: ?>
+        <p class="mb-0">
+            <?php if ($mkStatus === 'ok'): ?>
+                <span class="badge badge-resolved">Terhubung</span>
+            <?php elseif ($mkStatus === 'error'): ?>
+                <span class="badge badge-critical">Gagal terhubung</span>
+            <?php else: ?>
+                <span class="badge badge-closed">Belum diperiksa</span>
+            <?php endif; ?>
+            <span class="text-muted text-sm"><?= e($mkMessage) ?><?php if (!empty($mk['last_check_at'])): ?> · cek terakhir <?= e(time_ago($mk['last_check_at'])) ?><?php endif; ?></span>
+        </p>
+    <?php endif; ?>
+</div>
+
 <div class="card">
     <div class="flex-between">
         <h3 class="card-title mb-0">Gangguan Jaringan (30 hari terakhir)</h3>

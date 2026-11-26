@@ -89,6 +89,7 @@ lju_ticket/
 │   ├── sla.php              # Mesin SLA + eskalasi otomatis
 │   ├── reports.php          # Query agregasi laporan
 │   ├── pdf.php              # Integrasi domPDF (manual)
+│   ├── mikrotik.php         # Klien REST API MikroTik v7
 │   ├── header.php           # Layout header + topbar
 │   ├── sidebar.php          # Layout sidebar
 │   └── footer.php           # Layout footer
@@ -100,7 +101,8 @@ lju_ticket/
 │   ├── migration_batch4.sql # Migrasi modul jaringan (DB lama)
 │   └── migration_batch5.sql # Migrasi SLA & notifikasi (DB lama)
 ├── cron/
-│   └── sla.php              # Cron SLA (tiap 10 menit, token-protected)
+│   ├── sla.php              # Cron SLA & eskalasi (tiap 10 menit, token)
+│   └── mikrotik.php         # Cron sampling traffic MikroTik
 ├── uploads/
 │   └── tickets/             # Folder lampiran tiket
 ├── library/
@@ -119,6 +121,9 @@ lju_ticket/
 │   └── export.php           # Export PDF (domPDF) & CSV
 ├── settings/
 │   └── index.php            # Pengaturan SLA, email, WhatsApp, cron
+├── monitoring/
+│   ├── index.php            # Monitoring MikroTik (traffic/PPPoE/DHCP/queue)
+│   └── settings.php         # Koneksi router + daftar interface
 ├── index.php                # Entry point → dashboard / SSO redirect
 ├── dashboard.php            # Dashboard karyawan + ringkasan IT
 ├── tickets.php              # Tracking & riwayat tiket
@@ -154,6 +159,12 @@ lju_ticket/
    */10 * * * * curl -s "https://helpdesk.lju.co.id/cron/sla.php?token=TOKEN" > /dev/null
    ```
 8. Buka **Pengaturan** → isi SMTP email & WhatsApp API (opsional) → klik **Kirim Uji**.
+9. Isi `ENCRYPT_KEY` (minimal 32 karakter acak) di `config/config.php`, lalu buka
+   **Monitoring Jaringan → Pengaturan** untuk mengisi URL/username/password MikroTik dan menguji koneksi.
+10. (Opsional) cron sampling traffic agar grafik historis terisi:
+    ```bash
+    */2 * * * * curl -s "https://helpdesk.lju.co.id/cron/mikrotik.php?token=TOKEN" > /dev/null
+    ```
 
 ---
 
@@ -167,7 +178,7 @@ lju_ticket/
 | **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ✅ Selesai |
 | **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ✅ Selesai |
 | **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ✅ Selesai |
-| **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ⬜ Belum |
+| **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ✅ Selesai |
 
 ---
 
@@ -240,13 +251,13 @@ export PDF domPDF ✅ (`reports/export.php`) + export CSV untuk Excel ✅.
 ### G. Network Monitoring (MikroTik REST API v7)
 Setting URL/username/password/list interface via halaman setting; monitoring traffic interface
 (list & graph), PPPoE active (jumlah & daftar), DHCP lease (jumlah & daftar), simple queue
-(list & graph). → **Batch 7**
+(list & graph). ✅ **Selesai (Batch 7)** — lihat `monitoring/index.php` dan `monitoring/settings.php`.
 
 ---
 
 ### Migrasi database (bila sudah pernah import schema lama)
 - Batch 4 menambah tabel `rooms` + `network_checks` dan kolom `room_id`, `technician_action`, `checked_at`.
-- Jalankan berurutan: `mysql -u user -p lju_helpdesk < database/migration_batch4.sql` lalu `< database/migration_batch5.sql`
+- Jalankan berurutan: `mysql -u user -p lju_helpdesk < database/migration_batch4.sql`, lalu `< database/migration_batch5.sql`, lalu `< database/migration_batch7.sql` (Batch 6 hanya halaman laporan, tanpa perubahan tabel)
 - Instalasi baru cukup import `database/schema.sql` (sudah lengkap).
 
 ---
@@ -260,10 +271,19 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `includes/functions.php`: escaping, CSRF, format tanggal, badge status/prioritas.
 - `includes/header.php`, `sidebar.php`, `footer.php`: layout clean & elegan, responsif.
 - `assets/css/app.css`, `assets/js/app.js`: stylesheet + JS vanilla (tanpa framework/CDN wajib).
-- `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings`, `rooms`, `network_checks` + seed kategori, SLA, FAQ contoh.
+- `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `mikrotik_traffic_history`, `it_staff`, `system_settings`, `rooms`, `network_checks`, `notification_logs` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
 
+### Batch 7 — Monitoring MikroTik REST API v7 (2026-11-26)
+- `includes/mikrotik.php`: klien REST API RouterOS v7 — `mikrotik_request()`, `mikrotik_test_connection()`, `mikrotik_interfaces()`, `mikrotik_sample_traffic()` (bps dari selisih counter + simpan riwayat), `mikrotik_traffic_history()`, `mikrotik_overview()`, enkripsi password AES-256-CBC (`ENCRYPT_KEY`), `format_bps()`, `format_bytes()`.
+- `monitoring/settings.php`: URL router, username, password (terenkripsi, tidak ditampilkan ulang), verifikasi SSL, aktif/nonaktif, **Uji Koneksi**, **Muat Daftar Interface dari Router**, pilih interface yang dipantau, status koneksi terakhir + board/RouterOS/uptime.
+- `monitoring/index.php`: 4 tab — **Traffic Interface** (rx/tx real-time + grafik historis 3 jam), **PPPoE Active** (jumlah + daftar), **DHCP Lease** (jumlah bound + daftar), **Simple Queue** (daftar + grafik bar % terhadap max-limit).
+- `cron/mikrotik.php`: sampling traffic berkala (token-protected) + pembersihan riwayat lama.
+- `dashboard.php`: kartu **Status Router MikroTik** (terhubung/gagal, board, versi, cek terakhir).
+- `config/config.example.php`: `ENCRYPT_KEY`, `MIKROTIK_POLL_SECONDS`, `MIKROTIK_HISTORY_DAYS`.
+- `database/migration_batch7.sql`: kolom konfigurasi router, tabel `mikrotik_traffic_history`, seed interface contoh.
+- Persiapan router: `/ip service enable www-ssl` + user read-only `/user add name=helpdesk group=read password=...`.
 ### Batch 6 — Reporting & Analytics + domPDF (2026-11-26)
 - `includes/reports.php`: query agregasi laporan — `report_summary()`, `report_by_category()`, `report_by_priority()`, `report_by_officer()`, `report_by_room()`, `report_daily()`, `report_ratings()`, `report_fmt_minutes()`.
 - `includes/pdf.php`: integrasi **domPDF manual** (tanpa Composer) — `dompdf_available()`, `render_pdf()`, `render_report_html()` (template A4 dengan kop logo LJU, KPI, tabel, footer).

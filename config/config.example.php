@@ -36,5 +36,17 @@ define('UPLOAD_DIR', __DIR__ . '/../uploads/tickets/');
 define('UPLOAD_MAX_SIZE', 10 * 1024 * 1024); // 10 MB
 define('UPLOAD_ALLOWED_EXT', 'jpg,jpeg,png,gif,pdf,doc,docx,xls,xlsx,txt,zip,mp4');
 
+// --- Keamanan data sensitif (Batch 7) ---
+// Kunci enkripsi password MikroTik & SMTP yang disimpan di database.
+// WAJIB diganti dengan string acak panjang (minimal 32 karakter) dan jangan diubah
+// setelah ada data tersimpan, karena data lama tidak dapat didekripsi.
+define('ENCRYPT_KEY', 'ganti-dengan-kunci-acak-panjang-32-karakter');
+
+// --- MikroTik (Batch 7) ---
+// Interval polling grafik traffic (detik) — dipakai halaman monitoring.
+define('MIKROTIK_POLL_SECONDS', 60);
+// Lama penyimpanan riwayat traffic (hari).
+define('MIKROTIK_HISTORY_DAYS', 7);
+
 // --- Timezone ---
 date_default_timezone_set('Asia/Jakarta');

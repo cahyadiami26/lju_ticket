@@ -20,7 +20,7 @@ $nav = [
     ['reports/sla.php', 'Laporan SLA', '⏱', $it],
     ['reports/index.php', 'Laporan & Analitik', '▤', $it],
     // Batch 7 (MikroTik Monitoring) — hanya IT
-    ['monitoring/index.php', 'Monitoring Jaringan', '◈', false],
+    ['monitoring/index.php', 'Monitoring Jaringan', '◈', $it],
     // Batch 5 (Settings) — hanya IT
     ['settings/index.php', 'Pengaturan', '⚙', $it],
 ];
