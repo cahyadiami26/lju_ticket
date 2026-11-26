@@ -1,11 +1,40 @@
-# LJU IT Helpdesk — Apache rules
-Options -Indexes
-php_flag display_errors Off
+# ============================================================
+# LJU IT Helpdesk — Apache configuration
+# ============================================================
 
-# Blokir akses langsung ke folder sensitif
-<FilesMatch "^(config\.php|\.env)$">
-    Require all denied
+Options -Indexes
+DirectoryIndex index.php
+
+# --- Blokir akses langsung ke file sensitif ---
+<FilesMatch "^(config\.php|config\.example\.php|composer\.(json|lock)|\.env|.*\.sql|.*\.log)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
 
-# Redirect ke index.php jika direktori diakses
-DirectoryIndex index.php
+# --- Blokir folder internal ---
+RedirectMatch 403 ^/(config|includes|database|library)(/|$)
+
+# --- Header keamanan dasar ---
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# --- Upload size (sesuaikan dengan konfigurasi PHP server) ---
+<IfModule mod_php.c>
+    php_value upload_max_filesize 10M
+    php_value post_max_size 12M
+</IfModule>
+
+# --- Cegah listing & akses file tersembunyi ---
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>

@@ -125,6 +125,20 @@ function handle_ticket_uploads($pdo, $ticketId, $userId, array $files) {
     return $result;
 }
 
+/** Hitung target respons awal dari kebijakan sla_policies (menit). */
+function compute_sla_response_due($pdo, $priority, $createdAt = null) {
+    try {
+        $stmt = $pdo->prepare('SELECT response_minutes FROM sla_policies WHERE priority = ? LIMIT 1');
+        $stmt->execute([$priority]);
+        $row = $stmt->fetch();
+        if (!$row) return null;
+        $base = $createdAt ? strtotime($createdAt) : time();
+        return date('Y-m-d H:i:s', $base + ((int)$row['response_minutes'] * 60));
+    } catch (Throwable $e) {
+        return null;
+    }
+}
+
 /** Hitung SLA due dari kebijakan sla_policies. */
 function compute_sla_due($pdo, $priority, $createdAt = null) {
     try {

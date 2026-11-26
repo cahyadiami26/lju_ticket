@@ -81,13 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         $ticketNumber = generate_ticket_number($pdo);
         $slaDue = compute_sla_due($pdo, $old['priority']);
+        $slaResponseDue = compute_sla_response_due($pdo, $old['priority']);
         try {
             $stmt = $pdo->prepare(
                 'INSERT INTO tickets
                  (ticket_number, user_id, user_name, user_email, nama_bidang, nama_divisi,
                   category_id, title, description, priority, status,
-                  is_network_complaint, network_type, room_id, location_room, affected_device, sla_due_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                  is_network_complaint, network_type, room_id, location_room, affected_device,
+                  sla_due_at, sla_response_due_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             );
             $stmt->execute([
                 $ticketNumber, $user['id'], $user['name'], $user['email'],
@@ -98,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ($isNetwork && $old['room_id'] > 0) ? $old['room_id'] : null,
                 $isNetwork ? ($old['location_room'] ?: null) : null,
                 $isNetwork ? ($old['affected_device'] ?: null) : null,
-                $slaDue
+                $slaDue, $slaResponseDue
             ]);
             $ticketId = (int)$pdo->lastInsertId();
 
@@ -114,8 +116,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Notifikasi ke tim IT
-            notify_it_team($pdo, $usersPdo, 'Tiket baru: ' . $ticketNumber, $old['title'], 'tickets/view.php?id=' . $ticketId, 'ticket_created');
+            // Notifikasi ke tim IT (in-app + email/WhatsApp bila diaktifkan)
+            if (function_exists('notify_it_team_channels')) {
+                notify_it_team_channels($pdo, $usersPdo, 'Tiket baru: ' . $ticketNumber,
+                    $old['title'] . "\nPrioritas: " . ucfirst($old['priority']),
+                    'tickets/view.php?id=' . $ticketId, 'ticket_created',
+                    ['id' => $ticketId, 'ticket_number' => $ticketNumber, 'title' => $old['title']]);
+            } else {
+                notify_it_team($pdo, $usersPdo, 'Tiket baru: ' . $ticketNumber, $old['title'], 'tickets/view.php?id=' . $ticketId, 'ticket_created');
+            }
 
             header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&created=1');
             exit;

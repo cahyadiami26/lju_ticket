@@ -1,0 +1,3 @@
+# Cron endpoint hanya untuk dipanggil via HTTP dengan token.
+# Folder ini tidak diindeks.
+Options -Indexes

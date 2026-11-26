@@ -11,6 +11,22 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/ticket.php';
+require_once __DIR__ . '/notifier.php';
+
+/** Kirim notifikasi via semua kanal aktif (fallback ke in-app bila notifier belum dimuat). */
+function notify_ticket_user($pdo, $usersPdo, $userId, $title, $message, $link, $type, $ticket) {
+    if (function_exists('notify_user_channels')) {
+        return notify_user_channels($pdo, $usersPdo, $userId, $title, $message, $link, $type, $ticket);
+    }
+    return notify_user($pdo, $userId, $title, $message, $link, $type);
+}
+
+function notify_ticket_it($pdo, $usersPdo, $title, $message, $link, $type, $ticket) {
+    if (function_exists('notify_it_team_channels')) {
+        return notify_it_team_channels($pdo, $usersPdo, $title, $message, $link, $type, $ticket);
+    }
+    return notify_it_team($pdo, $usersPdo, $title, $message, $link, $type);
+}
 
 /** Daftar status valid + label. */
 function ticket_statuses() {
@@ -130,13 +146,12 @@ function change_ticket_status($pdo, $ticket, $newStatus, $user, $note = '') {
     // Notifikasi pelapor (kecuali yang mengubah adalah pelapor sendiri)
     $statusLabels = ticket_statuses();
     if ((int)$ticket['user_id'] !== (int)$user['id']) {
-        notify_user(
-            $pdo,
-            (int)$ticket['user_id'],
+        notify_ticket_user(
+            $pdo, $usersPdo, (int)$ticket['user_id'],
             'Status tiket ' . $ticket['ticket_number'] . ' → ' . ($statusLabels[$newStatus] ?? $newStatus),
             $note ?: ('Tiket Anda diperbarui oleh ' . $user['name'] . '.'),
             'tickets/view.php?id=' . (int)$ticket['id'],
-            'status_changed'
+            'status_changed', $ticket
         );
     }
     return ['ok' => true, 'message' => 'Status diubah menjadi ' . ($statusLabels[$newStatus] ?? $newStatus) . '.'];
@@ -165,13 +180,12 @@ function change_ticket_priority($pdo, $ticket, $newPriority, $user, $note = '') 
     add_ticket_history($pdo, (int)$ticket['id'], $user['id'], $user['name'], 'priority_changed', $old, $newPriority, $note ?: null);
 
     if ((int)$ticket['user_id'] !== (int)$user['id']) {
-        notify_user(
-            $pdo,
-            (int)$ticket['user_id'],
+        notify_ticket_user(
+            $pdo, $usersPdo, (int)$ticket['user_id'],
             'Prioritas tiket ' . $ticket['ticket_number'] . ' → ' . ($labels[$newPriority] ?? $newPriority),
             $note ?: ('Prioritas diperbarui oleh ' . $user['name'] . '.'),
             'tickets/view.php?id=' . (int)$ticket['id'],
-            'priority_changed'
+            'priority_changed', $ticket
         );
     }
     return ['ok' => true, 'message' => 'Prioritas diubah menjadi ' . ($labels[$newPriority] ?? $newPriority) . '.'];
@@ -207,14 +221,14 @@ function assign_ticket($pdo, $usersPdo, $ticket, $assigneeId, $user, $note = '')
 
     // Notifikasi petugas baru + pelapor
     if ($assigneeId !== (int)$user['id']) {
-        notify_user($pdo, $assigneeId, 'Tiket ditugaskan kepada Anda',
+        notify_ticket_user($pdo, $usersPdo, $assigneeId, 'Tiket ditugaskan kepada Anda',
             $ticket['ticket_number'] . ' — ' . $ticket['title'],
-            'tickets/view.php?id=' . (int)$ticket['id'], 'assigned');
+            'tickets/view.php?id=' . (int)$ticket['id'], 'assigned', $ticket);
     }
     if ((int)$ticket['user_id'] !== (int)$user['id']) {
-        notify_user($pdo, (int)$ticket['user_id'], 'Tiket Anda ditangani ' . $assignee['name'],
+        notify_ticket_user($pdo, $usersPdo, (int)$ticket['user_id'], 'Tiket Anda ditangani ' . $assignee['name'],
             $ticket['ticket_number'] . ' — ' . $ticket['title'],
-            'tickets/view.php?id=' . (int)$ticket['id'], 'assigned');
+            'tickets/view.php?id=' . (int)$ticket['id'], 'assigned', $ticket);
     }
     return ['ok' => true, 'message' => 'Tiket ditugaskan kepada ' . $assignee['name'] . '.'];
 }
@@ -243,8 +257,8 @@ function transfer_ticket($pdo, $usersPdo, $ticket, $toId, $user, $reason) {
     }
     add_ticket_history($pdo, (int)$ticket['id'], $user['id'], $user['name'], 'transferred',
         $ticket['assigned_name'] ?? '-', $to['name'], 'Alasan: ' . $reason);
-    notify_user($pdo, (int)$toId, 'Tiket ditransfer kepada Anda',
-        $ticket['ticket_number'] . ' — ' . $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'transferred');
+    notify_ticket_user($pdo, $usersPdo, (int)$toId, 'Tiket ditransfer kepada Anda',
+        $ticket['ticket_number'] . ' — ' . $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'transferred', $ticket);
     return ['ok' => true, 'message' => 'Tiket ditransfer kepada ' . $to['name'] . '.'];
 }
 
@@ -273,12 +287,12 @@ function escalate_ticket($pdo, $usersPdo, $ticket, $user, $reason) {
         $ticket['priority'], $newPriority, 'Alasan: ' . $reason);
 
     // Notifikasi tim IT + pelapor
-    notify_it_team($pdo, $usersPdo, 'Eskalasi tiket ' . $ticket['ticket_number'],
-        $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'escalated');
+    notify_ticket_it($pdo, $usersPdo, 'Eskalasi tiket ' . $ticket['ticket_number'],
+        $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'escalated', $ticket);
     if ((int)$ticket['user_id'] !== (int)$user['id']) {
-        notify_user($pdo, (int)$ticket['user_id'], 'Tiket Anda dieskalasi',
+        notify_ticket_user($pdo, $usersPdo, (int)$ticket['user_id'], 'Tiket Anda dieskalasi',
             'Penanganan ' . $ticket['ticket_number'] . ' ditingkatkan ke prioritas ' . ($labels[$newPriority] ?? $newPriority) . '.',
-            'tickets/view.php?id=' . (int)$ticket['id'], 'escalated');
+            'tickets/view.php?id=' . (int)$ticket['id'], 'escalated', $ticket);
     }
     return ['ok' => true, 'message' => 'Tiket dieskalasi ke prioritas ' . ($labels[$newPriority] ?? $newPriority) . '.'];
 }
@@ -306,11 +320,11 @@ function reopen_ticket($pdo, $usersPdo, $ticket, $user, $reason) {
     add_ticket_history($pdo, (int)$ticket['id'], $user['id'], $user['name'], 'reopened',
         $ticket['status'], 'in_progress', 'Alasan: ' . $reason);
 
-    notify_it_team($pdo, $usersPdo, 'Tiket dibuka kembali: ' . $ticket['ticket_number'],
-        $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'reopened');
+    notify_ticket_it($pdo, $usersPdo, 'Tiket dibuka kembali: ' . $ticket['ticket_number'],
+        $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'reopened', $ticket);
     if ((int)$ticket['user_id'] !== (int)$user['id']) {
-        notify_user($pdo, (int)$ticket['user_id'], 'Tiket Anda dibuka kembali',
-            $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'reopened');
+        notify_ticket_user($pdo, $usersPdo, (int)$ticket['user_id'], 'Tiket Anda dibuka kembali',
+            $reason, 'tickets/view.php?id=' . (int)$ticket['id'], 'reopened', $ticket);
     }
     return ['ok' => true, 'message' => 'Tiket dibuka kembali (In Progress).'];
 }

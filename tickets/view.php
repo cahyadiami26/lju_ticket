@@ -305,8 +305,24 @@ require_once __DIR__ . '/../includes/header.php';
             <tr><th>Nama Bidang / Divisi</th><td><?= e($ticket['nama_bidang'] ?? '-') ?> / <?= e($ticket['nama_divisi'] ?? '-') ?></td></tr>
             <tr><th>Petugas</th><td><?= e($ticket['assigned_name'] ?? 'Belum ditugaskan') ?></td></tr>
             <tr><th>Dibuat</th><td><?= e(format_date($ticket['created_at'])) ?> (<?= e(time_ago($ticket['created_at'])) ?>)</td></tr>
+            <?php if (!empty($ticket['sla_response_due_at'])): ?>
+            <tr><th>Target Respons</th><td>
+                <?= e(format_date($ticket['sla_response_due_at'])) ?>
+                <?php if (!empty($ticket['responded_at'])): ?>
+                    <span class="badge <?= strtotime($ticket['responded_at']) <= strtotime($ticket['sla_response_due_at']) ? 'badge-resolved' : 'badge-critical' ?>">
+                        <?= strtotime($ticket['responded_at']) <= strtotime($ticket['sla_response_due_at']) ? 'Tepat waktu' : 'Terlambat' ?>
+                    </span>
+                    <span class="text-muted text-sm">respons: <?= e(format_date($ticket['responded_at'])) ?></span>
+                <?php else: ?>
+                    <span class="badge badge-medium">Belum direspons</span>
+                <?php endif; ?>
+            </td></tr>
+            <?php endif; ?>
             <?php if (!empty($ticket['sla_due_at'])): ?>
-            <tr><th>Target SLA</th><td><?= e(format_date($ticket['sla_due_at'])) ?> · <?= sla_badge($ticket) ?></td></tr>
+            <tr><th>Target Penyelesaian</th><td><?= e(format_date($ticket['sla_due_at'])) ?> · <?= sla_badge($ticket) ?>
+                <?php if (!empty($ticket['sla_breached'])): ?><span class="badge badge-critical">SLA terlewati</span><?php endif; ?>
+                <?php if ((int)($ticket['escalate_level'] ?? 0) > 0): ?><span class="badge badge-medium">Eskalasi otomatis ×<?= (int)$ticket['escalate_level'] ?></span><?php endif; ?>
+            </td></tr>
             <?php endif; ?>
             <?php if (!empty($ticket['network_type'])): ?>
             <tr><th>Jenis Gangguan</th><td><?= e($netTypes[$ticket['network_type']] ?? $ticket['network_type']) ?></td></tr>

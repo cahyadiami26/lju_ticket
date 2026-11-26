@@ -66,7 +66,12 @@ CREATE TABLE IF NOT EXISTS tickets (
   technician_action   TEXT         DEFAULT NULL COMMENT 'Tindakan perbaikan yang dilakukan',
   room_id             INT UNSIGNED DEFAULT NULL COMMENT 'FK ke rooms.id',
   checked_at          DATETIME     DEFAULT NULL COMMENT 'Waktu pemeriksaan teknisi',
-  sla_due_at          DATETIME     DEFAULT NULL,
+  sla_due_at          DATETIME     DEFAULT NULL COMMENT 'Target penyelesaian',
+  sla_response_due_at DATETIME     DEFAULT NULL COMMENT 'Target respons awal',
+  sla_breached         TINYINT(1)  NOT NULL DEFAULT 0 COMMENT 'Sudah melewati SLA',
+  sla_warned_at       DATETIME     DEFAULT NULL COMMENT 'Kapan peringatan mendekati SLA dikirim',
+  escalated_at        DATETIME     DEFAULT NULL COMMENT 'Kapan eskalasi otomatis terakhir',
+  escalate_level      TINYINT      NOT NULL DEFAULT 0 COMMENT 'Jumlah eskalasi otomatis',
   responded_at        DATETIME     DEFAULT NULL,
   resolved_at         DATETIME     DEFAULT NULL,
   closed_at           DATETIME     DEFAULT NULL,
@@ -165,10 +170,33 @@ CREATE TABLE IF NOT EXISTS notifications (
   message     TEXT         DEFAULT NULL,
   link        VARCHAR(255) DEFAULT NULL,
   type        VARCHAR(50)  DEFAULT 'info',
+  channel     VARCHAR(20)  NOT NULL DEFAULT 'app' COMMENT 'app|email|whatsapp',
   is_read     TINYINT(1)   NOT NULL DEFAULT 0,
+  sent_at     DATETIME     DEFAULT NULL COMMENT 'Terisi bila kanal eksternal berhasil dikirim',
+  send_status VARCHAR(20)  DEFAULT NULL COMMENT 'pending|sent|failed|skipped',
+  send_error  VARCHAR(255) DEFAULT NULL,
   created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_notif_user (user_id, is_read)
+  KEY idx_notif_user (user_id, is_read),
+  KEY idx_notif_channel (channel, send_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ------------------------------------------------------------
+-- Log pengiriman notifikasi eksternal (email / WhatsApp)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notification_logs (
+  id          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  channel     VARCHAR(20)  NOT NULL COMMENT 'email|whatsapp',
+  recipient   VARCHAR(190) NOT NULL,
+  subject     VARCHAR(255) DEFAULT NULL,
+  body        TEXT         DEFAULT NULL,
+  ticket_id   INT UNSIGNED DEFAULT NULL,
+  status      VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT 'pending|sent|failed',
+  response    TEXT         DEFAULT NULL,
+  created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_nlog_channel (channel, status),
+  KEY idx_nlog_ticket (ticket_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- ------------------------------------------------------------
@@ -291,5 +319,15 @@ ON DUPLICATE KEY UPDATE title = VALUES(title);
 INSERT INTO system_settings (setting_key, setting_value) VALUES
 ('app_name', 'LJU IT Helpdesk & Ticketing System'),
 ('ticket_prefix', 'LJU'),
-('auto_close_days', '7')
+('auto_close_days', '7'),
+('sla_warning_minutes', '60'),
+('sla_auto_escalate', '1'),
+('sla_escalate_max_level', '2'),
+('notify_email_enabled', '0'),
+('notify_whatsapp_enabled', '0'),
+('email_from', 'helpdesk@lju.co.id'),
+('email_from_name', 'LJU IT Helpdesk'),
+('whatsapp_api_url', 'https://api.fonnte.com/send'),
+('whatsapp_token', ''),
+('cron_token', 'ganti_token_cron_anda')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);

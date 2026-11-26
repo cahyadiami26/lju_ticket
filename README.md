@@ -127,7 +127,7 @@ lju_ticket/
 | **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ✅ Selesai |
 | **3** | **Ticket Management** — Assignment, prioritas, status, eskalasi, internal notes, transfer, reopen, history, SLA | ✅ Selesai |
 | **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ✅ Selesai |
-| **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ⬜ Belum |
+| **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ✅ Selesai |
 | **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ⬜ Belum |
 | **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ⬜ Belum |
 
@@ -158,12 +158,12 @@ Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi a
 | Ticket Assignment | Penugasan ke petugas | ✅ Batch 3 (panel IT + bulk assign) |
 | Ticket Priority | Low, Medium, High, Critical | ✅ Batch 2 dipilih pelapor · Batch 3 diubah IT (SLA dihitung ulang) |
 | Ticket Status | Open, Assigned, In Progress, Waiting User, Resolved, Closed | ✅ Batch 3 (transisi + timestamp + notifikasi) |
-| Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ✅ Batch 3 manual (naik 1 level + notifikasi) · otomatis menyusul Batch 5 |
+| Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ✅ Batch 3 manual · Batch 5 eskalasi otomatis saat SLA terlewati |
 | Internal Notes | Catatan internal petugas | ✅ Batch 2 komentar internal · Batch 3 tercatat di riwayat |
 | Ticket Transfer | Pindah antar petugas | ✅ Batch 3 (wajib alasan) |
 | Ticket Reopen | Buka kembali tiket belum tuntas | ✅ Batch 3 (oleh IT maupun pelapor) |
 | Ticket History | Riwayat aktivitas tiket | ✅ Batch 3 (timeline semua perubahan) |
-| SLA Monitoring | Target waktu penyelesaian | 🟡 Batch 3: badge Sisa/Lewat SLA · laporan Batch 5 |
+| SLA Monitoring | Target waktu penyelesaian | ✅ Batch 5 (peringatan H-60mnt, eskalasi otomatis, laporan bulanan) |
 
 > **Resolved vs Closed:** *Resolved* = petugas menyatakan masalah selesai.
 > *Closed* = penyelesaian dikonfirmasi pelapor / ditutup sesuai kebijakan.
@@ -186,12 +186,13 @@ Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi a
 | Medium | Internet satu ruangan bermasalah | 2 jam | 1 hari kerja |
 | Low | Permintaan instalasi aplikasi | 4 jam | 3 hari kerja |
 
-Fitur: penghitungan SLA otomatis, peringatan mendekati batas, notifikasi melewati SLA,
-eskalasi otomatis, laporan pencapaian SLA/bulan, rata-rata respons & penyelesaian. → **Batch 5**
+Fitur: penghitungan SLA otomatis ✅, peringatan mendekati batas ✅, notifikasi melewati SLA ✅,
+eskalasi otomatis ✅, laporan pencapaian SLA/bulan ✅ (`reports/sla.php`), rata-rata respons & penyelesaian ✅.
 
 ### E. Notification Center
-Notifikasi in-app, email perusahaan, WhatsApp (API) untuk: tiket ditugaskan, status berubah,
-info tambahan diminta, tiket selesai, melewati SLA. → **Batch 5**
+Notifikasi in-app ✅, email perusahaan ✅ (SMTP native / `mail()`), WhatsApp ✅ (API gateway Fonnte-compatible)
+untuk: tiket baru, ditugaskan, status berubah, prioritas berubah, komentar, tiket selesai, melewati SLA, eskalasi.
+Pengaturan kanal + uji kirim ada di menu **Pengaturan**; log pengiriman tersimpan di `notification_logs`.
 
 ### F. Reporting & Analytics
 Total tiket, tiket terbuka, tiket selesai, melewati SLA, per kategori, per ruangan,
@@ -206,7 +207,7 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 
 ### Migrasi database (bila sudah pernah import schema lama)
 - Batch 4 menambah tabel `rooms` + `network_checks` dan kolom `room_id`, `technician_action`, `checked_at`.
-- Jalankan: `mysql -u user -p lju_helpdesk < database/migration_batch4.sql`
+- Jalankan berurutan: `mysql -u user -p lju_helpdesk < database/migration_batch4.sql` lalu `< database/migration_batch5.sql`
 - Instalasi baru cukup import `database/schema.sql` (sudah lengkap).
 
 ---
@@ -223,6 +224,17 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings`, `rooms`, `network_checks` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
+
+### Batch 5 — SLA & Escalation + Notification Center (2026-11-26)
+- `includes/settings.php`: `get_settings()`, `setting()`, `setting_bool()`, `save_settings()` — pengaturan berbasis tabel `system_settings`.
+- `includes/notifier.php`: Notification Center multi-kanal — `notify_user_channels()` (in-app selalu; email & WhatsApp bila diaktifkan), `notify_it_team_channels()`, `send_email_smtp()` (SMTP native STARTTLS/SSL/auth, fallback `mail()`), `send_whatsapp_api()` (Fonnte-compatible), template email HTML, `notifier_log()`.
+- `includes/sla.php`: mesin SLA — `sla_targets()`, `run_sla_monitor()` (peringatan H-60 menit, penandaan pelanggaran, eskalasi otomatis naik prioritas, auto-close tiket Resolved), `sla_report_stats()`.
+- `cron/sla.php`: endpoint cron (CLI atau `?token=`), dijadwalkan tiap 10 menit.
+- `settings/index.php`: pengaturan SLA per prioritas (respons & penyelesaian), ambang peringatan, maksimal eskalasi otomatis, auto-close, SMTP email + tombol **uji kirim**, WhatsApp API + **uji kirim**, token cron, dan log 15 pengiriman terakhir.
+- `reports/sla.php`: laporan SLA bulanan — total, selesai, melewati SLA, % kepatuhan, rata-rata respons & penyelesaian, kepatuhan per prioritas, kinerja petugas, daftar tiket terlambat.
+- `tickets/view.php`: baris **Target Respons** (tepat waktu/terlambat) dan **Target Penyelesaian** + badge SLA terlewati & jumlah eskalasi otomatis.
+- `database/migration_batch5.sql`: migrasi kolom SLA, kanal notifikasi, `notification_logs`, pengaturan baru, dan pengisian target respons tiket lama.
+- `.htaccess` diperkuat: blokir akses langsung ke `config/`, `includes/`, `database/`, `library/`, file `.sql`, serta header keamanan dasar.
 
 ### Batch 4 — Network & Internet Complaint (2026-11-26)
 - `database/schema.sql`: tabel baru `rooms` (10 ruangan contoh) + `network_checks` (checklist pemeriksaan); kolom baru pada `tickets` = `room_id`, `technician_action`, `checked_at`.

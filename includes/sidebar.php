@@ -17,11 +17,12 @@ $nav = [
     // Batch 4 (Network Complaint)
     ['network/index.php', 'Pengaduan Jaringan', '◉', true],
     // Batch 6 (Reporting) — hanya IT
+    ['reports/sla.php', 'Laporan SLA', '⏱', $it],
     ['reports/index.php', 'Laporan & Analitik', '▤', false],
     // Batch 7 (MikroTik Monitoring) — hanya IT
     ['monitoring/index.php', 'Monitoring Jaringan', '◈', false],
     // Batch 5 (Settings) — hanya IT
-    ['settings/index.php', 'Pengaturan', '⚙', false],
+    ['settings/index.php', 'Pengaturan', '⚙', $it],
 ];
 ?>
 <aside class="sidebar" id="sidebar">
