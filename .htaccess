@@ -1,0 +1,11 @@
+# LJU IT Helpdesk — Apache rules
+Options -Indexes
+php_flag display_errors Off
+
+# Blokir akses langsung ke folder sensitif
+<FilesMatch "^(config\.php|\.env)$">
+    Require all denied
+</FilesMatch>
+
+# Redirect ke index.php jika direktori diakses
+DirectoryIndex index.php

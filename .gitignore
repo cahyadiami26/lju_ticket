@@ -1,0 +1,7 @@
+config/config.php
+uploads/tickets/*
+!uploads/tickets/.gitkeep
+library/dompdf/*
+!library/dompdf/.gitkeep
+*.log
+.DS_Store

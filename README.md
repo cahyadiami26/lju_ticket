@@ -1,0 +1,218 @@
+# LJU IT Helpdesk & Ticketing System
+
+Pusat layanan pengaduan dan permintaan bantuan teknologi informasi bagi seluruh karyawan **PT Lampung Jasa Utama (LJU)**.
+
+- **URL produksi:** https://helpdesk.lju.co.id
+- **Stack:** PHP Native (tanpa framework) + MySQL (PDO) + domPDF (install manual, tanpa Composer)
+- **Login:** SSO LJU (`LJU_APPS` session, domain `.lju.co.id`)
+- **Logo:** https://dms.lju.co.id/assets/img/logo.png
+- **Avatar user:** `https://dms.lju.co.id/uploads/avatars/{avatar}` (kolom `avatar` di tabel `users`), fallback inisial jika kosong
+
+> **Catatan nomenclature:** kolom `division` pada tabel `users` ditampilkan sebagai **Nama Bidang**,
+> kolom `department` ditampilkan sebagai **Nama Divisi** di dalam aplikasi ini.
+
+---
+
+## Cara Kerja Login (SSO)
+
+Aplikasi ini **tidak memiliki login sendiri**. Session di-handle oleh Portal SSO LJU:
+
+```php
+ini_set('session.cookie_domain', '.lju.co.id');
+session_name('LJU_APPS');
+session_set_cookie_params([
+    'lifetime' => 86400,
+    'path'     => '/',
+    'domain'   => '.lju.co.id',
+    'secure'   => isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+    'httponly'  => true,
+    'samesite' => 'Lax'
+]);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (empty($_SESSION['user_id'])) {
+    header('Location: https://lju.co.id/dashboard/?target_system='
+        . urlencode('https://helpdesk.lju.co.id')
+        . '&redirect_after_login=' . urlencode($_SERVER['REQUEST_URI']));
+    exit;
+}
+```
+
+Setelah login di SSO, session diisi ulang dari tabel `users` (database terpisah, satu mesin yang sama):
+
+```php
+$_SESSION['user_id']    = $userRow['id'];
+$_SESSION['user_nik']   = $userRow['nik'];
+$_SESSION['username']   = $userRow['username'];
+$_SESSION['user_name']  = $userRow['name'];
+$_SESSION['user_email'] = $userRow['email'];
+$_SESSION['role']       = $userRow['role'];
+$_SESSION['position']   = $userRow['position'];
+$_SESSION['division']   = $userRow['division'];   // → Nama Bidang
+$_SESSION['department'] = $userRow['department']; // → Nama Divisi
+$_SESSION['avatar']     = $userRow['avatar'];
+$_SESSION['photo']      = $userRow['photo'];
+$_SESSION['signature']  = $userRow['signature'];
+$_SESSION['rfid']       = $userRow['rfid'];
+$_SESSION['webmail_user'] = $userRow['webmail_user'];
+$_SESSION['webmail_pass'] = $userRow['webmail_pass'];
+```
+
+Implementasi ada di `includes/session.php` + `includes/auth.php`.
+Setiap request, session di-refresh dari database `users` agar data selalu mutakhir.
+
+**Mode pengembangan (DEV_MODE):** jika `DEV_MODE = true` di `config/config.php` dan belum ada session SSO,
+aplikasi menampilkan halaman `demo-login.php` untuk memilih user dari database `users` (tanpa password).
+**Wajib `DEV_MODE = false` di production.**
+
+---
+
+## Struktur Folder
+
+```
+lju_ticket/
+├── config/
+│   ├── config.example.php   # Template konfigurasi (copy ke config.php)
+│   └── config.php           # Konfigurasi nyata (di-.gitignore, jangan commit)
+├── includes/
+│   ├── session.php          # SSO session + proteksi halaman
+│   ├── db.php               # Koneksi PDO (helpdesk + users)
+│   ├── auth.php             # Helper user, role, avatar, refresh session
+│   ├── functions.php        # Helper umum (escape, CSRF, tanggal, badge)
+│   ├── header.php           # Layout header + topbar
+│   ├── sidebar.php          # Layout sidebar
+│   └── footer.php           # Layout footer
+├── assets/
+│   ├── css/app.css          # Stylesheet (clean, elegan, responsif)
+│   └── js/app.js            # JavaScript vanilla
+├── database/
+│   └── schema.sql           # Skema database helpdesk + seed data
+├── uploads/
+│   └── tickets/             # Folder lampiran tiket (Batch 2)
+├── library/
+│   └── dompdf/              # domPDF install manual (Batch 6, tanpa Composer)
+├── index.php                # Entry point → dashboard / SSO redirect
+├── dashboard.php            # Dashboard karyawan + ringkasan IT
+├── demo-login.php           # Login demo (DEV_MODE saja)
+├── logout.php               # Keluar (hapus session lokal)
+└── profile.php              # Profil user (dari session + tabel users)
+```
+
+---
+
+## Instalasi
+
+1. Copy konfigurasi:
+   ```bash
+   cp config/config.example.php config/config.php
+   ```
+   Isi `DB_HOST`, `DB_NAME` (database helpdesk), `DB_USER`, `DB_PASS`,
+   serta `USERS_DB_NAME` (database tempat tabel `users` berada — satu mesin, database berbeda).
+2. Import database:
+   ```bash
+   mysql -u root -p lju_helpdesk < database/schema.sql
+   ```
+3. Pastikan folder `uploads/tickets/` writable oleh web server (`chmod 755` / `chown www-data`).
+4. Set `DEV_MODE = false` untuk production, `true` hanya untuk development lokal.
+5. Arahkan domain `helpdesk.lju.co.id` ke folder ini (document root).
+
+---
+
+## Roadmap Batch (dikerjakan bertahap, berhenti per batch untuk konfirmasi)
+
+| Batch | Modul | Status |
+|-------|-------|--------|
+| **1** | **Fondasi** — Config, SSO session, layout, schema DB, dashboard skeleton, profil, README | ✅ Selesai |
+| **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ⬜ Belum |
+| **3** | **Ticket Management** — Assignment, prioritas, status, internal notes, transfer, reopen, history, eskalasi manual | ⬜ Belum |
+| **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ⬜ Belum |
+| **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ⬜ Belum |
+| **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ⬜ Belum |
+| **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ⬜ Belum |
+
+---
+
+## Daftar Fitur Lengkap & Status
+
+### A. Employee Portal (Portal Karyawan)
+| Fitur | Keterangan | Status |
+|-------|------------|--------|
+| Dashboard karyawan | Ringkasan tiket yang dibuat | ✅ Batch 1 (skeleton, data real) |
+| Buat tiket baru | Formulir pengaduan / permintaan bantuan | ⬜ Batch 2 |
+| Tracking tiket | Memantau status penanganan | ⬜ Batch 2 |
+| Riwayat pengaduan | Daftar seluruh tiket sebelumnya | ⬜ Batch 2 |
+| Komunikasi tiket | Percakapan pelapor ↔ petugas IT | ⬜ Batch 2 |
+| Upload lampiran | Foto, screenshot, video, dokumen | ⬜ Batch 2 |
+| Rating layanan | Penilaian setelah tiket selesai | ⬜ Batch 2 |
+| FAQ / Knowledge Base | Panduan masalah umum | ⬜ Batch 2 |
+
+Kategori pengaduan: Internet & jaringan, Aplikasi perusahaan, Komputer & laptop, Printer & scanner,
+Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi aplikasi, Layanan IT lainnya.
+
+### B. Ticket Management (Manajemen Tiket)
+| Fitur | Keterangan | Status |
+|-------|------------|--------|
+| Ticket Number | Nomor tiket otomatis (`LJU-YYYYMMDD-XXXX`) | ⬜ Batch 2/3 |
+| Ticket Assignment | Penugasan ke petugas | ⬜ Batch 3 |
+| Ticket Priority | Low, Medium, High, Critical | ⬜ Batch 3 |
+| Ticket Status | Open, Assigned, In Progress, Waiting User, Resolved, Closed | ⬜ Batch 3 |
+| Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ⬜ Batch 3/5 |
+| Internal Notes | Catatan internal petugas | ⬜ Batch 3 |
+| Ticket Transfer | Pindah antar petugas | ⬜ Batch 3 |
+| Ticket Reopen | Buka kembali tiket belum tuntas | ⬜ Batch 3 |
+| Ticket History | Riwayat aktivitas tiket | ⬜ Batch 3 |
+| SLA Monitoring | Target waktu penyelesaian | ⬜ Batch 5 |
+
+> **Resolved vs Closed:** *Resolved* = petugas menyatakan masalah selesai.
+> *Closed* = penyelesaian dikonfirmasi pelapor / ditutup sesuai kebijakan.
+
+### C. Network & Internet Complaint
+| Fitur | Status |
+|-------|--------|
+| Pelaporan internet lambat / terputus / WiFi / LAN / tidak stabil | ⬜ Batch 4 |
+| Gangguan akses aplikasi internal | ⬜ Batch 4 |
+| Identifikasi lokasi gangguan (ruangan) | ⬜ Batch 4 |
+| Hasil pemeriksaan teknisi | ⬜ Batch 4 |
+| Perangkat jaringan bermasalah | ⬜ Batch 4 |
+| Riwayat gangguan per ruangan | ⬜ Batch 4 |
+
+### D. SLA & Escalation Management
+| Prioritas | Contoh gangguan | Respons awal | Target penyelesaian |
+|-----------|-----------------|--------------|---------------------|
+| Critical | Internet seluruh kantor mati | 15 menit | 2 jam |
+| High | Aplikasi utama tidak dapat diakses | 30 menit | 4 jam |
+| Medium | Internet satu ruangan bermasalah | 2 jam | 1 hari kerja |
+| Low | Permintaan instalasi aplikasi | 4 jam | 3 hari kerja |
+
+Fitur: penghitungan SLA otomatis, peringatan mendekati batas, notifikasi melewati SLA,
+eskalasi otomatis, laporan pencapaian SLA/bulan, rata-rata respons & penyelesaian. → **Batch 5**
+
+### E. Notification Center
+Notifikasi in-app, email perusahaan, WhatsApp (API) untuk: tiket ditugaskan, status berubah,
+info tambahan diminta, tiket selesai, melewati SLA. → **Batch 5**
+
+### F. Reporting & Analytics
+Total tiket, tiket terbuka, tiket selesai, melewati SLA, per kategori, per ruangan,
+kinerja petugas, rata-rata penyelesaian, kepuasan pengguna + export PDF domPDF. → **Batch 6**
+
+### G. Network Monitoring (MikroTik REST API v7)
+Setting URL/username/password/list interface via halaman setting; monitoring traffic interface
+(list & graph), PPPoE active (jumlah & daftar), DHCP lease (jumlah & daftar), simple queue
+(list & graph). → **Batch 7**
+
+---
+
+## Changelog
+
+### Batch 1 — Fondasi (2026-11-26)
+- `config/config.example.php` + `config/config.php`: konfigurasi DB helpdesk & DB users, DEV_MODE, URL logo/avatar.
+- `includes/session.php`: SSO session `LJU_APPS` (domain `.lju.co.id`), redirect ke Portal SSO.
+- `includes/db.php`: koneksi PDO ke database helpdesk dan database `users` (satu mesin).
+- `includes/auth.php`: refresh session dari tabel `users`, helper role IT (`admin` / `division = IT`), `avatar_url()` + fallback inisial, mapping Nama Bidang / Nama Divisi.
+- `includes/functions.php`: escaping, CSRF, format tanggal, badge status/prioritas.
+- `includes/header.php`, `sidebar.php`, `footer.php`: layout clean & elegan, responsif.
+- `assets/css/app.css`, `assets/js/app.js`: stylesheet + JS vanilla (tanpa framework/CDN wajib).
+- `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings` + seed kategori, SLA, FAQ contoh.
+- `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
+- `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
