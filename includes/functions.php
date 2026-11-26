@@ -116,3 +116,49 @@ if (!function_exists('history_label')) {
         return $map[$action] ?? ucfirst(str_replace('_', ' ', (string)$action));
     }
 }
+
+if (!function_exists('sla_state')) {
+    /**
+     * Status SLA sebuah tiket.
+     * @return array ['state' => ok|warning|overdue|done|none, 'diff' => detik, 'text' => label]
+     */
+    function sla_state($ticket) {
+        if (empty($ticket['sla_due_at'])) {
+            return ['state' => 'none', 'diff' => 0, 'text' => 'Tanpa SLA'];
+        }
+        if (in_array($ticket['status'] ?? '', ['resolved', 'closed'], true)) {
+            return ['state' => 'done', 'diff' => 0, 'text' => 'Selesai'];
+        }
+        $diff = strtotime($ticket['sla_due_at']) - time();
+        $abs = abs($diff);
+        $h = floor($abs / 3600);
+        $m = floor(($abs % 3600) / 60);
+        $human = $h > 0 ? ($h . 'j ' . $m . 'm') : ($m . 'm');
+
+        if ($diff < 0) {
+            return ['state' => 'overdue', 'diff' => $diff, 'text' => 'Lewat ' . $human];
+        }
+        if ($diff <= 3600) {
+            return ['state' => 'warning', 'diff' => $diff, 'text' => 'Sisa ' . $human];
+        }
+        // > 1 hari tampilkan dalam hari
+        if ($diff > 86400) {
+            return ['state' => 'ok', 'diff' => $diff, 'text' => 'Sisa ' . floor($diff / 86400) . ' hari'];
+        }
+        return ['state' => 'ok', 'diff' => $diff, 'text' => 'Sisa ' . $human];
+    }
+}
+
+if (!function_exists('sla_badge')) {
+    function sla_badge($ticket) {
+        $s = sla_state($ticket);
+        $class = [
+            'ok'      => 'badge-resolved',
+            'warning' => 'badge-medium',
+            'overdue' => 'badge-critical',
+            'done'    => 'badge-closed',
+            'none'    => 'badge-closed',
+        ][$s['state']] ?? 'badge-closed';
+        return '<span class="badge ' . e($class) . '">' . e($s['text']) . '</span>';
+    }
+}

@@ -78,7 +78,12 @@ $statusOptions = [
 
 <div class="flex-between" style="margin-bottom:16px">
     <h2 class="mt-0 mb-0"><?= $it ? 'Semua Tiket' : 'Tiket Saya' ?></h2>
-    <a href="<?= e(url('tickets/create.php')) ?>" class="btn btn-primary">＋ Buat Tiket Baru</a>
+    <div class="quick-actions">
+        <?php if ($it): ?>
+            <a href="<?= e(url('admin/tickets.php')) ?>" class="btn btn-ghost">Manajemen Tiket</a>
+        <?php endif; ?>
+        <a href="<?= e(url('tickets/create.php')) ?>" class="btn btn-primary">＋ Buat Tiket Baru</a>
+    </div>
 </div>
 
 <div class="card">

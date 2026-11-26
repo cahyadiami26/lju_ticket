@@ -1,13 +1,14 @@
 <?php
 /**
- * Detail Tiket: info, komunikasi, lampiran, rating, riwayat (Batch 2).
- * Aksi manajemen (assign/status/transfer) ada di Batch 3.
+ * Detail Tiket: info, komunikasi, lampiran, rating, riwayat.
+ * Batch 2: portal karyawan. Batch 3: panel aksi tim IT (assign/status/prioritas/eskalasi/transfer/reopen).
  */
 require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/url.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ticket.php';
+require_once __DIR__ . '/../includes/ticket_actions.php';
 
 $user = current_user();
 $it = is_it($pdo);
@@ -130,6 +131,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
+// --- POST: aksi manajemen tiket (khusus tim IT) ---
+$actionMsg = '';
+$actionErr = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'manage') {
+    if (!$it) {
+        $actionErr = 'Hanya tim IT yang dapat melakukan aksi ini.';
+    } elseif (!csrf_check()) {
+        $actionErr = 'Token keamanan tidak valid.';
+    } else {
+        $op = $_POST['op'] ?? '';
+        $note = trim($_POST['note'] ?? '');
+        $res = ['ok' => false, 'message' => 'Aksi tidak dikenal.'];
+        switch ($op) {
+            case 'assign':
+                $res = assign_ticket($pdo, $usersPdo, $ticket, (int)($_POST['assigned_to'] ?? 0), $user, $note);
+                break;
+            case 'status':
+                $res = change_ticket_status($pdo, $ticket, $_POST['status'] ?? '', $user, $note);
+                break;
+            case 'priority':
+                $res = change_ticket_priority($pdo, $ticket, $_POST['priority'] ?? '', $user, $note);
+                break;
+            case 'escalate':
+                $res = escalate_ticket($pdo, $usersPdo, $ticket, $user, $note);
+                break;
+            case 'transfer':
+                $res = transfer_ticket($pdo, $usersPdo, $ticket, (int)($_POST['transfer_to'] ?? 0), $user, $note);
+                break;
+            case 'reopen':
+                $res = reopen_ticket($pdo, $usersPdo, $ticket, $user, $note);
+                break;
+        }
+        if ($res['ok']) {
+            header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&updated=1');
+            exit;
+        }
+        $actionErr = $res['message'];
+    }
+}
+
+// --- POST: aksi pelapor (konfirmasi tutup / buka kembali) ---
+$ownerMsg = '';
+$ownerErr = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'owner') {
+    $isOwner = (int)$ticket['user_id'] === (int)$user['id'];
+    if (!$isOwner) {
+        $ownerErr = 'Aksi ini hanya untuk pelapor tiket.';
+    } elseif (!csrf_check()) {
+        $ownerErr = 'Token keamanan tidak valid.';
+    } else {
+        $op = $_POST['op'] ?? '';
+        $reason = trim($_POST['reason'] ?? '');
+        if ($op === 'close') {
+            if ($ticket['status'] !== 'resolved') {
+                $ownerErr = 'Tiket hanya bisa ditutup setelah berstatus Resolved.';
+            } else {
+                try {
+                    $pdo->prepare("UPDATE tickets SET status = 'closed', closed_at = NOW(), updated_at = NOW() WHERE id = ?")->execute([$ticketId]);
+                    add_ticket_history($pdo, $ticketId, $user['id'], $user['name'], 'closed', 'resolved', 'closed', 'Ditutup & dikonfirmasi oleh pelapor');
+                    notify_it_team($pdo, $usersPdo, 'Tiket ditutup pelapor: ' . $ticket['ticket_number'], $ticket['title'], 'tickets/view.php?id=' . $ticketId, 'closed');
+                    header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&updated=1');
+                    exit;
+                } catch (Throwable $e) {
+                    error_log('[OWNER CLOSE] ' . $e->getMessage());
+                    $ownerErr = 'Gagal menutup tiket.';
+                }
+            }
+        } elseif ($op === 'reopen') {
+            $res = reopen_ticket($pdo, $usersPdo, $ticket, $user, $reason !== '' ? $reason : 'Pelapor menyatakan masalah belum selesai');
+            if ($res['ok']) {
+                header('Location: ' . url('tickets/view.php') . '?id=' . $ticketId . '&updated=1');
+                exit;
+            }
+            $ownerErr = $res['message'];
+        }
+    }
+}
+
 // --- Data pendukung ---
 $comments = [];
 $attachments = [];
@@ -152,6 +231,9 @@ try {
 
 $canRate = in_array($ticket['status'], ['resolved', 'closed'], true) && empty($ticket['rating']) && (int)$ticket['user_id'] === (int)$user['id'];
 $created = isset($_GET['created']);
+$updated = isset($_GET['updated']);
+$itStaff = $it ? get_it_staff($pdo, $usersPdo) : [];
+$sla = sla_state($ticket);
 
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -159,10 +241,19 @@ require_once __DIR__ . '/../includes/header.php';
 <?php if ($created): ?>
     <div class="alert alert-success">Tiket <strong><?= e($ticket['ticket_number']) ?></strong> berhasil dibuat. Tim IT akan segera menindaklanjuti.</div>
 <?php endif; ?>
+<?php if ($updated): ?>
+    <div class="alert alert-success">Perubahan tiket berhasil disimpan.</div>
+<?php endif; ?>
+<?php if (!empty($actionErr)): ?>
+    <div class="alert alert-error"><?= e($actionErr) ?></div>
+<?php endif; ?>
+<?php if (!empty($ownerErr)): ?>
+    <div class="alert alert-error"><?= e($ownerErr) ?></div>
+<?php endif; ?>
 
 <div class="flex-between" style="margin-bottom:16px">
     <h2 class="mt-0 mb-0"><?= e($ticket['ticket_number']) ?></h2>
-    <div><?= status_badge($ticket['status']) ?> <?= priority_badge($ticket['priority']) ?></div>
+    <div><?= status_badge($ticket['status']) ?> <?= priority_badge($ticket['priority']) ?> <?= sla_badge($ticket) ?></div>
 </div>
 
 <div class="card">
@@ -175,7 +266,7 @@ require_once __DIR__ . '/../includes/header.php';
             <tr><th>Petugas</th><td><?= e($ticket['assigned_name'] ?? 'Belum ditugaskan') ?></td></tr>
             <tr><th>Dibuat</th><td><?= e(format_date($ticket['created_at'])) ?> (<?= e(time_ago($ticket['created_at'])) ?>)</td></tr>
             <?php if (!empty($ticket['sla_due_at'])): ?>
-            <tr><th>Target SLA</th><td><?= e(format_date($ticket['sla_due_at'])) ?></td></tr>
+            <tr><th>Target SLA</th><td><?= e(format_date($ticket['sla_due_at'])) ?> · <?= sla_badge($ticket) ?></td></tr>
             <?php endif; ?>
             <?php if (!empty($ticket['network_type'])): ?>
             <tr><th>Jenis Gangguan</th><td><?= e($ticket['network_type']) ?></td></tr>
@@ -201,6 +292,125 @@ require_once __DIR__ . '/../includes/header.php';
        <?php if (!empty($ticket['rating_comment'])): ?> — <?= e($ticket['rating_comment']) ?><?php endif; ?></p>
     <?php endif; ?>
 </div>
+
+<?php
+$isOwner = (int)$ticket['user_id'] === (int)$user['id'];
+if ($isOwner && in_array($ticket['status'], ['resolved', 'closed'], true)):
+?>
+<div class="card">
+    <h3 class="card-title">Konfirmasi Penyelesaian</h3>
+    <?php if ($ticket['status'] === 'resolved'): ?>
+        <p>Tim IT menyatakan masalah Anda sudah <strong>Resolved</strong>. Mohon konfirmasi:</p>
+        <form method="post" style="display:inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="owner">
+            <input type="hidden" name="op" value="close">
+            <button type="submit" class="btn btn-primary">✓ Masalah Sudah Selesai — Tutup Tiket</button>
+        </form>
+        <form method="post" style="margin-top:14px">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="owner">
+            <input type="hidden" name="op" value="reopen">
+            <div class="form-group" style="margin-bottom:8px">
+                <label for="reason">Masih bermasalah? Jelaskan dan buka kembali tiket</label>
+                <textarea id="reason" name="reason" class="form-control" placeholder="Contoh: internet kembali lambat sejak pagi ini"></textarea>
+            </div>
+            <button type="submit" class="btn btn-ghost">↺ Buka Kembali Tiket</button>
+        </form>
+    <?php else: ?>
+        <p>Tiket ini sudah <strong>Closed</strong>. Jika masalah muncul kembali:</p>
+        <form method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="owner">
+            <input type="hidden" name="op" value="reopen">
+            <div class="form-group" style="margin-bottom:8px">
+                <label for="reason">Alasan membuka kembali</label>
+                <textarea id="reason" name="reason" class="form-control" placeholder="Jelaskan kendala yang muncul kembali..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-ghost">↺ Buka Kembali Tiket</button>
+        </form>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if ($it): ?>
+<div class="card">
+    <h3 class="card-title">Aksi Tim IT</h3>
+    <form method="post">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="manage">
+
+        <div class="form-group">
+            <label for="note">Catatan alasan / keterangan (opsional, tercatat di riwayat)</label>
+            <input type="text" id="note" name="note" class="form-control" maxlength="255" placeholder="Contoh: sudah dihubungi via telepon">
+        </div>
+
+        <div class="action-grid">
+            <div class="action-box">
+                <h4>Penugasan</h4>
+                <select name="assigned_to" class="form-control">
+                    <option value="">— Pilih petugas —</option>
+                    <?php foreach ($itStaff as $st): ?>
+                        <option value="<?= (int)$st['id'] ?>"<?= (int)($ticket['assigned_to'] ?? 0) === (int)$st['id'] ? ' selected' : '' ?>><?= e($st['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" name="op" value="assign" class="btn btn-primary btn-sm">Tugaskan</button>
+            </div>
+
+            <div class="action-box">
+                <h4>Status</h4>
+                <select name="status" class="form-control">
+                    <?php foreach (ticket_statuses() as $k => $v): ?>
+                        <option value="<?= e($k) ?>"<?= $ticket['status'] === $k ? ' selected' : '' ?>><?= e($v) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" name="op" value="status" class="btn btn-primary btn-sm">Ubah Status</button>
+            </div>
+
+            <div class="action-box">
+                <h4>Prioritas</h4>
+                <select name="priority" class="form-control">
+                    <?php foreach (ticket_priorities() as $k => $v): ?>
+                        <option value="<?= e($k) ?>"<?= $ticket['priority'] === $k ? ' selected' : '' ?>><?= e($v) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" name="op" value="priority" class="btn btn-ghost btn-sm">Ubah Prioritas</button>
+            </div>
+
+            <div class="action-box">
+                <h4>Transfer ke Petugas Lain</h4>
+                <select name="transfer_to" class="form-control">
+                    <option value="">— Pilih petugas —</option>
+                    <?php foreach ($itStaff as $st): ?>
+                        <?php if ((int)($ticket['assigned_to'] ?? 0) === (int)$st['id']) continue; ?>
+                        <option value="<?= (int)$st['id'] ?>"><?= e($st['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" name="op" value="transfer" class="btn btn-ghost btn-sm">Transfer</button>
+            </div>
+
+            <div class="action-box danger">
+                <h4>Eskalasi</h4>
+                <div class="text-sm text-muted" style="margin-bottom:8px">Menaikkan prioritas satu tingkat dan memberi notifikasi ke seluruh tim IT.</div>
+                <button type="submit" name="op" value="escalate" class="btn btn-ghost btn-sm">Eskalasi Sekarang</button>
+            </div>
+
+            <?php if (in_array($ticket['status'], ['resolved', 'closed'], true)): ?>
+            <div class="action-box danger">
+                <h4>Buka Kembali</h4>
+                <div class="text-sm text-muted" style="margin-bottom:8px">Kembalikan tiket ke status In Progress (alasan wajib diisi).</div>
+                <button type="submit" name="op" value="reopen" class="btn btn-ghost btn-sm">Reopen Tiket</button>
+            </div>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="text-sm text-muted" style="margin-top:12px">
+        Alur status: <strong>Open → Assigned → In Progress → Waiting User → Resolved → Closed</strong>.
+        <em>Resolved</em> = IT menyatakan selesai, <em>Closed</em> = dikonfirmasi/ditutup sesuai kebijakan.
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="card">
     <h3 class="card-title">Lampiran (<?= count($attachments) ?>)</h3>

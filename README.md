@@ -125,7 +125,7 @@ lju_ticket/
 |-------|-------|--------|
 | **1** | **Fondasi** — Config, SSO session, layout, schema DB, dashboard skeleton, profil, README | ✅ Selesai |
 | **2** | **Employee Portal** — Buat tiket, tracking, riwayat, komunikasi, upload lampiran, rating, FAQ | ✅ Selesai |
-| **3** | **Ticket Management** — Assignment, prioritas, status, internal notes, transfer, reopen, history, eskalasi manual | ⬜ Belum |
+| **3** | **Ticket Management** — Assignment, prioritas, status, eskalasi, internal notes, transfer, reopen, history, SLA | ✅ Selesai |
 | **4** | **Network & Internet Complaint** — Modul khusus jaringan, lokasi/ruangan, hasil pemeriksaan, perangkat, riwayat per ruangan | ⬜ Belum |
 | **5** | **SLA & Escalation + Notification Center** — SLA otomatis, peringatan, notifikasi in-app/email/WA | ⬜ Belum |
 | **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ⬜ Belum |
@@ -155,15 +155,15 @@ Email perusahaan, Akun & akses pengguna, Perangkat keras, Permintaan instalasi a
 | Fitur | Keterangan | Status |
 |-------|------------|--------|
 | Ticket Number | Nomor tiket otomatis (`LJU-YYYYMMDD-XXXX`) | ✅ Batch 2 |
-| Ticket Assignment | Penugasan ke petugas | ⬜ Batch 3 |
-| Ticket Priority | Low, Medium, High, Critical | 🟡 Batch 2: dipilih pelapor, SLA otomatis · Batch 3: ubah oleh IT |
-| Ticket Status | Open, Assigned, In Progress, Waiting User, Resolved, Closed | ⬜ Batch 3 |
-| Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ⬜ Batch 3/5 |
-| Internal Notes | Catatan internal petugas | ⬜ Batch 3 |
-| Ticket Transfer | Pindah antar petugas | ⬜ Batch 3 |
-| Ticket Reopen | Buka kembali tiket belum tuntas | ⬜ Batch 3 |
-| Ticket History | Riwayat aktivitas tiket | ⬜ Batch 3 |
-| SLA Monitoring | Target waktu penyelesaian | ⬜ Batch 5 |
+| Ticket Assignment | Penugasan ke petugas | ✅ Batch 3 (panel IT + bulk assign) |
+| Ticket Priority | Low, Medium, High, Critical | ✅ Batch 2 dipilih pelapor · Batch 3 diubah IT (SLA dihitung ulang) |
+| Ticket Status | Open, Assigned, In Progress, Waiting User, Resolved, Closed | ✅ Batch 3 (transisi + timestamp + notifikasi) |
+| Ticket Escalation | Eskalasi ke penanggung jawab berikutnya | ✅ Batch 3 manual (naik 1 level + notifikasi) · otomatis menyusul Batch 5 |
+| Internal Notes | Catatan internal petugas | ✅ Batch 2 komentar internal · Batch 3 tercatat di riwayat |
+| Ticket Transfer | Pindah antar petugas | ✅ Batch 3 (wajib alasan) |
+| Ticket Reopen | Buka kembali tiket belum tuntas | ✅ Batch 3 (oleh IT maupun pelapor) |
+| Ticket History | Riwayat aktivitas tiket | ✅ Batch 3 (timeline semua perubahan) |
+| SLA Monitoring | Target waktu penyelesaian | 🟡 Batch 3: badge Sisa/Lewat SLA · laporan Batch 5 |
 
 > **Resolved vs Closed:** *Resolved* = petugas menyatakan masalah selesai.
 > *Closed* = penyelesaian dikonfirmasi pelapor / ditutup sesuai kebijakan.
@@ -217,6 +217,14 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `database/schema.sql`: tabel `categories`, `tickets`, `ticket_comments`, `ticket_attachments`, `ticket_history`, `notifications`, `faq_articles`, `sla_policies`, `mikrotik_settings`, `mikrotik_interfaces`, `it_staff`, `system_settings` + seed kategori, SLA, FAQ contoh.
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
+
+### Batch 3 — Ticket Management (2026-11-26)
+- `includes/ticket_actions.php`: pusat logika manajemen tiket — `change_ticket_status()`, `change_ticket_priority()`, `assign_ticket()`, `transfer_ticket()`, `escalate_ticket()`, `reopen_ticket()`, `get_it_staff()`, `get_ticket()`. Semua aksi mencatat `ticket_history` dan mengirim notifikasi in-app.
+- `admin/tickets.php`: meja kerja tim IT — kartu statistik (Open/Assigned/In Progress/Waiting User/Melewati SLA/Belum ditugaskan), filter (status, prioritas, petugas, kategori, SLA, pencarian), urutan otomatis prioritas+kritis, aksi massal (tugaskan / ubah status / ubah prioritas), pagination.
+- `tickets/view.php`: panel **Aksi Tim IT** (tugaskan, ubah status, ubah prioritas, transfer + alasan, eskalasi, reopen) dan panel **Konfirmasi Penyelesaian** untuk pelapor (tutup tiket setelah Resolved / buka kembali bila masih bermasalah).
+- Visual SLA: `sla_state()` + `sla_badge()` — badge "Sisa 3j 20m" / "Lewat 1j 5m" di daftar dan detail tiket.
+- `notifications.php` + badge notifikasi di topbar + menu sidebar Notifikasi (tandai dibaca, hapus, buka tautan tiket).
+- Timestamp otomatis: `responded_at` saat assigned/in_progress, `resolved_at`, `closed_at`, dan reset saat reopen.
 
 ### Batch 2 — Employee Portal (2026-11-26)
 - `includes/ticket.php`: generator nomor tiket `LJU-YYYYMMDD-XXXX`, pencatat history, notifikasi in-app (ke pelapor & tim IT), upload lampiran (validasi ekstensi/size, simpan di `uploads/tickets/`), hitung SLA due dari `sla_policies`.

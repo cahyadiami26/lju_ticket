@@ -194,3 +194,45 @@ table.table tbody tr:hover td { background: transparent; }
     .attachment-list li { flex-direction: column; align-items: flex-start; }
     .search-row .form-control { width: 100%; max-width: none !important; }
 }
+
+/* ============ Batch 3: Ticket Management ============ */
+a.stat-card { display: block; color: inherit; }
+a.stat-card:hover { text-decoration: none; border-color: var(--primary); box-shadow: 0 4px 12px rgba(11,92,173,.12); }
+.stat-link .stat-label { color: var(--muted); }
+
+.bulk-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px; background: #f8fafc; border: 1px dashed var(--border); border-radius: 10px; margin-bottom: 14px; }
+.bulk-bar .form-control { padding: 6px 10px; font-size: 12px; }
+
+.pagination { display: flex; gap: 6px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+/* Panel aksi IT di detail tiket */
+.action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.action-box { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: #fbfcfe; }
+.action-box h4 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.action-box .form-control { padding: 7px 10px; font-size: 13px; }
+.action-box .btn { width: 100%; margin-top: 8px; }
+.action-box.danger { background: #fff8f8; border-color: #f3d3d3; }
+
+.sla-meter { height: 6px; border-radius: 999px; background: #e8edf5; overflow: hidden; margin-top: 8px; }
+.sla-meter span { display: block; height: 100%; background: var(--success); }
+.sla-meter.warning span { background: var(--warning); }
+.sla-meter.overdue span { background: var(--danger); }
+
+/* ============ Notification Center ============ */
+.notif-link { position: relative; }
+.notif-badge { position: absolute; top: -2px; right: -2px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 1px 5px; line-height: 1.4; }
+.notif-list { list-style: none; padding: 0; margin: 0; }
+.notif-item { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-bottom: 1px solid var(--border); border-radius: 8px; }
+.notif-item:last-child { border-bottom: none; }
+.notif-item.unread { background: #f5f9ff; }
+.notif-icon { width: 34px; height: 34px; border-radius: 50%; background: #eaf2fb; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 15px; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-title { font-weight: 600; font-size: 13px; }
+.notif-message { font-size: 13px; color: #334155; margin-top: 2px; }
+.notif-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.notif-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+
+@media (max-width: 640px) {
+    .notif-item { flex-wrap: wrap; }
+    .notif-actions { width: 100%; justify-content: flex-end; }
+}

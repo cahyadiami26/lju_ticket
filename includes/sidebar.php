@@ -9,9 +9,10 @@ $nav = [
     ['dashboard.php', 'Dashboard', '▦', true],
     ['tickets.php', 'Tiket Saya', '✉', true],
     ['tickets/create.php', 'Buat Tiket', '＋', true],
+    ['notifications.php', 'Notifikasi', '🔔', true],
     ['faq.php', 'FAQ / Knowledge Base', '?', true],
     // Batch 3 (Ticket Management) — hanya IT
-    ['admin/tickets.php', 'Manajemen Tiket', '⚙', false],
+    ['admin/tickets.php', 'Manajemen Tiket', '⚙', $it],
     ['admin/faq.php', 'Kelola FAQ', '✎', $it],
     // Batch 4 (Network Complaint)
     ['network/index.php', 'Pengaduan Jaringan', '◉', false],
