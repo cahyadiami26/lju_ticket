@@ -180,6 +180,10 @@ lju_ticket/
 | **6** | **Reporting & Analytics + domPDF** — Dashboard manajerial, laporan SLA, export PDF (domPDF manual) | ✅ Selesai |
 | **7** | **Network Monitoring MikroTik** — REST API v7: traffic interface, PPPoE active, DHCP lease, simple queue | ✅ Selesai |
 
+**Status: seluruh 7 batch selesai** (A–G terpenuhi). Langkah selanjutnya: konfigurasi server,
+isi `config/config.php` + `ENCRYPT_KEY`, import database, install domPDF manual, aktifkan cron SLA & MikroTik,
+lalu uji dengan data nyata di https://helpdesk.lju.co.id.
+
 ---
 
 ## Daftar Fitur Lengkap & Status
@@ -275,15 +279,6 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - `index.php`, `dashboard.php`, `profile.php`, `demo-login.php`, `logout.php`: halaman Batch 1.
 - `.htaccess`, `.gitignore`, `uploads/tickets/.gitkeep`, `library/dompdf/.gitkeep` (placeholder domPDF manual).
 
-### Batch 7 — Monitoring MikroTik REST API v7 (2026-11-26)
-- `includes/mikrotik.php`: klien REST API RouterOS v7 — `mikrotik_request()`, `mikrotik_test_connection()`, `mikrotik_interfaces()`, `mikrotik_sample_traffic()` (bps dari selisih counter + simpan riwayat), `mikrotik_traffic_history()`, `mikrotik_overview()`, enkripsi password AES-256-CBC (`ENCRYPT_KEY`), `format_bps()`, `format_bytes()`.
-- `monitoring/settings.php`: URL router, username, password (terenkripsi, tidak ditampilkan ulang), verifikasi SSL, aktif/nonaktif, **Uji Koneksi**, **Muat Daftar Interface dari Router**, pilih interface yang dipantau, status koneksi terakhir + board/RouterOS/uptime.
-- `monitoring/index.php`: 4 tab — **Traffic Interface** (rx/tx real-time + grafik historis 3 jam), **PPPoE Active** (jumlah + daftar), **DHCP Lease** (jumlah bound + daftar), **Simple Queue** (daftar + grafik bar % terhadap max-limit).
-- `cron/mikrotik.php`: sampling traffic berkala (token-protected) + pembersihan riwayat lama.
-- `dashboard.php`: kartu **Status Router MikroTik** (terhubung/gagal, board, versi, cek terakhir).
-- `config/config.example.php`: `ENCRYPT_KEY`, `MIKROTIK_POLL_SECONDS`, `MIKROTIK_HISTORY_DAYS`.
-- `database/migration_batch7.sql`: kolom konfigurasi router, tabel `mikrotik_traffic_history`, seed interface contoh.
-- Persiapan router: `/ip service enable www-ssl` + user read-only `/user add name=helpdesk group=read password=...`.
 ### Batch 6 — Reporting & Analytics + domPDF (2026-11-26)
 - `includes/reports.php`: query agregasi laporan — `report_summary()`, `report_by_category()`, `report_by_priority()`, `report_by_officer()`, `report_by_room()`, `report_daily()`, `report_ratings()`, `report_fmt_minutes()`.
 - `includes/pdf.php`: integrasi **domPDF manual** (tanpa Composer) — `dompdf_available()`, `render_pdf()`, `render_report_html()` (template A4 dengan kop logo LJU, KPI, tabel, footer).
@@ -332,3 +327,13 @@ Setting URL/username/password/list interface via halaman setting; monitoring tra
 - Filter user aktif bersifat opsional (`users_active_condition()`): aplikasi tetap berjalan bila tabel `users` tidak punya kolom `is_active`.
 - `assets/css/app.css`: komponen Batch 2 (kartu tiket, percakapan, timeline riwayat, lampiran, rating bintang, FAQ list, responsif mobile).
 - `uploads/tickets/.htaccess`: blokir eksekusi script di folder lampiran.
+
+### Batch 7 — Monitoring MikroTik REST API v7 (2026-11-26)
+- `includes/mikrotik.php`: klien REST API RouterOS v7 — `mikrotik_request()`, `mikrotik_test_connection()`, `mikrotik_interfaces()`, `mikrotik_sample_traffic()` (bps dari selisih counter + simpan riwayat), `mikrotik_traffic_history()`, `mikrotik_overview()`, enkripsi password AES-256-CBC (`ENCRYPT_KEY`), `format_bps()`, `format_bytes()`.
+- `monitoring/settings.php`: URL router, username, password (terenkripsi, tidak ditampilkan ulang), verifikasi SSL, aktif/nonaktif, **Uji Koneksi**, **Muat Daftar Interface dari Router**, pilih interface yang dipantau, status koneksi terakhir + board/RouterOS/uptime.
+- `monitoring/index.php`: 4 tab — **Traffic Interface** (rx/tx real-time + grafik historis 3 jam), **PPPoE Active** (jumlah + daftar), **DHCP Lease** (jumlah bound + daftar), **Simple Queue** (daftar + grafik bar % terhadap max-limit).
+- `cron/mikrotik.php`: sampling traffic berkala (token-protected) + pembersihan riwayat lama.
+- `dashboard.php`: kartu **Status Router MikroTik** (terhubung/gagal, board, versi, cek terakhir).
+- `config/config.example.php`: `ENCRYPT_KEY`, `MIKROTIK_POLL_SECONDS`, `MIKROTIK_HISTORY_DAYS`.
+- `database/migration_batch7.sql`: kolom konfigurasi router, tabel `mikrotik_traffic_history`, seed interface contoh.
+- Persiapan router: `/ip service enable www-ssl` + user read-only `/user add name=helpdesk group=read password=...`.
